@@ -19,6 +19,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,7 +79,9 @@ fun ViewerScreen(
     auth: ThumbnailAuth,
     onBack: () -> Unit,
     onSave: (ViewerItem) -> Unit,
+    onShare: (ViewerItem) -> Unit,
     saving: Boolean,
+    sharing: Boolean,
 ) {
     if (items.isEmpty()) {
         onBack()
@@ -126,6 +129,13 @@ fun ViewerScreen(
                     color = Color.White,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
+                if (sharing) {
+                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.padding(12.dp))
+                } else {
+                    IconButton(onClick = { onShare(current) }) {
+                        Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.viewer_share), tint = Color.White)
+                    }
+                }
                 if (saving) {
                     CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.padding(12.dp))
                 } else {
