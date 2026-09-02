@@ -9,8 +9,8 @@
 
 ## Goal
 
-The device holds a histogram of every day that has photos, per namespace, with running totals,
-and answers "which day do I show" locally and instantly. The selection logic is pure and tested
+The device holds a histogram of every day that has photos, per namespace, and answers "which
+day do I show" locally and instantly. The selection logic is pure and tested
 without a NAS, which is why part of this plan was finishable before anything else existed.
 
 ## Tasks
