@@ -15,8 +15,8 @@ research documents are worth reading; its access model cannot work from a phone.
 2. `documents/plans/index.md` - what is built, what is next, and the dependency graph.
 3. The plan file you are working on, in full.
 4. `documents/plans/plan.md` - the product specification and the authority on requirements.
-5. `documents/research/photos-web-api.md` once plan 001 has written it. Until then, no endpoint
-   detail is settled and nothing may be guessed.
+5. `documents/research/photos-web-api.md` - the endpoint specification, from a real run against
+   Photos 1.9.1. Nothing about the API may be assumed beyond what it records.
 
 ## Safety rules that override convenience
 

@@ -100,24 +100,25 @@ Only "what is today" is a local question, and it is answered in the device's zon
 
 ### 6.3 Fetching a day's photos
 
-The item list endpoint pages by `offset` and `limit` over a list sorted by taken time. The
-histogram's running total is therefore the offset of any given day: a day at cumulative
-position 41,320 holding 12 photos is `offset=41320, limit=12`.
+The item list endpoint accepts `start_time` and `end_time` in epoch seconds, compared against
+each item's `time` (plan 001, U3). A calendar day in one namespace is fetched as
+`start_time` = that day's midnight rendered as UTC, `end_time` = `start_time + 86399`, sorted by
+taken time, and paged by `offset` and `limit` inside the range when the day holds more than a
+page. One such call per namespace per year that holds the day.
 
-This is deliberate. It means the app does not depend on the item endpoint accepting a time
-range, which is undocumented and version-sensitive. Running totals are computed per namespace,
-because each namespace is its own list.
+The histogram says which days exist and how many items each holds; the range fetch never
+depends on the histogram being fresh. A returned count that differs from the histogram's count
+is logged and schedules a histogram refresh. Whether `end_time` is inclusive is unverified; a
+photo taken at exactly 23:59:59 may be missed, and the owner accepted that (decision 005,
+amendment of 2026-09-02).
 
-An overlap read of one item either side of the window verifies the arithmetic; a mismatch falls
-back to a wider read and filters on the returned taken time.
-
-Plan 001 found that the range parameter does exist (`start_time`, `end_time`, U3) and verified
-the arithmetic above once. Whether the range replaces the arithmetic is decision 005's pending
-amendment, after the next observation run settles the boundary semantics.
+Until that amendment the mechanism was an offset computed from running totals, verified once
+against the NAS and then retired because a stale histogram would have returned the wrong
+photos rather than fewer.
 
 ## 7. Local storage
 
-- Day histogram, per namespace: year, month, day, count, running total.
+- Day histogram, per namespace: year, month, day, count.
 - Item rows for the days the user has opened: unit id, taken time, thumbnail cache key, plus
   what the grid needs.
 - Session id and trusted-device id.
@@ -166,8 +167,8 @@ Nothing that depends on a still-open item may be guessed.
   repeats across sections with its full count, so days are deduplicated when flattened.
   Flattened, the histogram sums exactly to the item count, in both namespaces.
 - **U3** Answered: yes. `start_time` and `end_time`, epoch seconds. `time_start` and `time_end`
-  are silently ignored. Whether the ends are inclusive is open until the next run, and decision
-  005 is reconsidered then.
+  are silently ignored. Decision 005 was amended the same day to fetch by range; end
+  inclusivity stays unverified and accepted as a one-second edge.
 - **U4** Answered. `Thumbnail` `get` v2 as a GET with `id, cache_key, type=unit, size, _sid`
   serves JPEG bytes, but only with the `X-SYNO-TOKEN` header; without it the same URL returns a
   JSON error with HTTP 200. Whether the session can travel in a cookie instead of the query

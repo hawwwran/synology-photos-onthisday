@@ -178,13 +178,13 @@ grid with a badge without any other call.
 window 1000000000..1100000000 (September 2001 to November 2004) both namespaces returned items
 taken in 2004 instead of the newest ones. `time_start` and `time_end` were silently ignored: the
 response was identical to the unfiltered call, which is the failure mode that makes the wrong
-spelling dangerous. Not yet established: whether the ends are inclusive, and whether the filter
-compares against `time` exactly as the day buckets are cut (U7). Both are one call each on the
-next run. Until then the offset arithmetic below is the verified mechanism and the range is the
-candidate replacement, which is the case decision 005 said would be the first thing to
-reconsider.
+spelling dangerous. Not established: whether the ends are inclusive. Decision 005 was amended
+the same day to fetch a day as `start_time` = UTC midnight, `end_time` = start + 86399; the
+owner accepted that a photo taken at exactly 23:59:59 may be missed if `end_time` turns out
+exclusive. The 2004 results are consistent with the filter comparing against `time` the same
+way the day buckets are cut.
 
-### Decision 005's arithmetic, checked once
+### The retired mechanism, checked once before retiring it
 
 Running total before a day, over the flattened histogram, equals that day's offset in the item
 list. Checked in both namespaces with one item either side, which is plan 004's overlap read:
@@ -194,7 +194,9 @@ list. Checked in both namespaces with one item either side, which is plan 004's 
 | Personal | 2026-08-28 | 2 | 8 | `offset=7 limit=4` | 08-31, 08-28, 08-28, 08-27 |
 | Shared | 2026-05-23 | 1 | 2 | `offset=1 limit=3` | 05-28, 05-23, 05-11 |
 
-Exactly the day's items inside, one neighbour on each edge outside.
+Exactly the day's items inside, one neighbour on each edge outside. Retired by decision 005's
+amendment because a stale histogram would have made it return the wrong photos rather than
+fewer; recorded here because it is the proof that histogram and list share one order.
 
 ## U4. Thumbnails
 
@@ -268,13 +270,12 @@ A day of 1,220 items across the two namespaces is the worst case a day screen ha
 
 ## What a second run, as the owner, would settle
 
-Optional; the script already carries the probes. One login, not retried: `start_time`/`end_time`
-boundary semantics (a range of one exact `time` returns one item if inclusive); a whole-day
-range against the histogram's `item_count`; thumbnail GET with the session in a `Cookie: id=`
-header and the token in `X-SYNO-TOKEN`, with nothing in the query string; `SynoToken` as a
-query parameter; whether `device_id` carries a value without a two-factor code. Without the
-run, the app can still be built safely: use `end_time = start + 86399`, compare the returned
-count with the histogram, and keep `_sid` in the thumbnail query as observed to work.
+Optional; the script already carries the probes. One login, not retried: whether the thumbnail
+GET accepts the session in a `Cookie: id=` header with the token in `X-SYNO-TOKEN` and nothing
+in the query string, which would keep session ids out of the reverse proxy's access log;
+`SynoToken` as a query parameter; whether `device_id` carries a value without a two-factor
+code; and, for the record, whether `end_time` is inclusive. None of it blocks a plan: the app
+keeps `_sid` in the thumbnail query as observed to work, and the range edge is accepted.
 
 ## Deliberately not done
 

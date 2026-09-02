@@ -26,7 +26,7 @@ per-account access and the app implements no permission logic. That is
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
 | Plans | 001-005. 001 is done; U6 dropped by the owner |
-| Decisions | 001-007. 004 amended twice today; Q4 accepted; Q3 answered yes |
+| Decisions | 001-007. 002, 004 and 005 amended today; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
 
@@ -40,8 +40,8 @@ library's day histogram as pages of about a hundred items, each listing its days
 than a page repeats across pages with its full count, so days are deduplicated when flattened,
 after which the histogram sums exactly to the item count in both namespaces (25,149 personal,
 77,436 shared; 1,936 and 3,330 distinct days). The offset arithmetic from decision 005 was
-checked live and holds. The item list **does** accept `start_time`/`end_time` in epoch seconds,
-and silently ignores `time_start`/`time_end`. Thumbnails come from a GET, but only with the
+checked live and held, then was retired: the item list **does** accept `start_time`/`end_time`
+in epoch seconds (and silently ignores `time_start`/`time_end`), so a day is fetched by range. Thumbnails come from a GET, but only with the
 `X-SYNO-TOKEN` header; without it the same URL returns a JSON error with HTTP 200. `time` is
 seconds, `indexed_time` milliseconds. Timeline days are the UTC calendar date of `time`, and
 `time` is the camera's wall clock stored as if UTC (owner confirmed a 20:22 photo carries 20:22
@@ -50,13 +50,11 @@ trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-1. **Decision 005 amendment**, pending the owner's yes: fetch a day by `start_time`/`end_time`
-   instead of by offset, drop the running totals and the overlap read from plans 003 and 004.
-   The reasoning is in the research file under U3.
-2. **Optional second run as the owner.** The script carries probes for the range's boundary
-   semantics and for a cookie-borne session on thumbnail GETs. The research file says how to
-   build safely without it.
-3. **Plans 002 and 003** are unblocked and can run in either order.
+1. **Plans 002 and 003**, in either order. Plan 001 is closed; decision 005 is amended to fetch
+   a day by `start_time`/`end_time`, and plans 003 and 004 already reflect that.
+2. **Optional second run as the owner.** The script carries probes for a cookie-borne session on
+   thumbnail GETs (keeps session ids out of the proxy log) and for `device_id`. Nothing waits
+   on it.
 
 ```bash
 cd ~/git/synology-photos-onthisday
@@ -75,11 +73,12 @@ without the names.
 ## Decisions already made, so they are not reopened
 
 - Photos web API is the only source. No backend, nothing deployed to the NAS.
-- Personal **and** shared space, merged. Running totals stay per namespace.
+- Personal **and** shared space, merged. Every call once per namespace; rows keep their namespace.
 - Session id stored, password never. Expiry re-prompts. Trusted-device id kept.
 - HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no
   TLS code. The auto-block-sees-the-proxy exposure is accepted (Q4).
-- The day histogram lives in Room and answers day questions offline.
+- The day histogram lives in Room and answers day questions offline. A day's photos are fetched
+  by `start_time`/`end_time`; the offset arithmetic was verified once and retired.
 - One account per install. An account change wipes the index and every cache first.
 - Photos' own calendar-day boundaries are authoritative: the UTC date of `time`.
 

@@ -59,6 +59,22 @@ answered locally, in the device's zone.
 - **Fetch everything and index locally.** A quarter of a million rows over a phone connection.
   Rejected on the obvious grounds.
 
+## Amendments
+
+- 2026-09-02: **a day's photos are fetched by time range, not by offset.** Plan 001 found
+  `Browse.Item` `list` honours `start_time` and `end_time` in epoch seconds, compared against
+  `time`, and verified the offset arithmetic above once against the live list before retiring
+  it. The fetch for one calendar day, per namespace, is `start_time` = that day's midnight
+  rendered as UTC (`time` is the camera's wall clock stored as if UTC, research U7), `end_time` =
+  `start_time + 86399`, `sort_by=takentime`, paged by `offset`/`limit` inside the range for a
+  day larger than a page. Running totals, the offset computation and the overlap read are
+  dropped; a stale histogram now means a missing new photo, never someone else's photo. The
+  histogram remains the source of which days exist and how many items each holds; a returned
+  count that differs from `item_count` is logged and schedules a histogram refresh, nothing is
+  retried. Whether `end_time` is inclusive was not verified. The owner accepted the consequence:
+  a photo taken at exactly 23:59:59 may be missed. Chosen by the owner; this is the
+  reconsideration the alternatives section asked for.
+
 ## Related
 
 [[002-personal-and-shared-space]], [[006-one-account-per-install]]

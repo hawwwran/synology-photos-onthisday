@@ -4,8 +4,8 @@
 - **Source:** plan.md §6.3, §8.2
 - **Depends on:** 002, 003
 - **Blocks:** 005
-- **Decisions:** [005](../decisions/005-day-index-on-device.md)
-- **Progress:** 0 / 13
+- **Decisions:** [005](../decisions/005-day-index-on-device.md), amended 2026-09-02
+- **Progress:** 0 / 14
 
 ## Goal
 
@@ -17,18 +17,22 @@ how far it is from today when it is not today.
 
 ### Items
 
-- [ ] Item list call by `offset` and `limit`, per namespace, per year.
-- [ ] Offsets from the running totals rather than a time-range parameter.
-- [ ] Overlap read of one item either side, with a wider-read fallback when taken times
-      disagree with the window.
+- [ ] Item list call by `start_time`/`end_time` for the day in each year, per namespace, sorted
+      by taken time; `offset`/`limit` inside the range for a day larger than a page.
+- [ ] Range bounds: `start_time` = the day's midnight rendered as UTC, `end_time` = start +
+      86399. `time` is the camera's wall clock stored as if UTC, so no zone conversion anywhere.
+- [ ] A returned count that differs from the histogram's `item_count` is logged and schedules a
+      histogram refresh. Nothing is retried or widened.
 - [ ] Item rows cached per opened day.
-- [ ] Videos handled per whatever plan 001 found about the item type field: shown with a badge
-      or filtered, decided once and written down.
+- [ ] Videos: `type` is `"photo"` or `"video"`, same fields and a ready thumbnail (plan 001).
+      Shown in the grid with a badge; playback stays out of scope (plan.md §9).
 
 ### Thumbnails
 
-- [ ] Coil fetcher that adds the session id, with a cache key of unit id plus size so a new
-      session does not invalidate the disk cache.
+- [ ] Coil fetcher that adds `_sid` and the `X-SYNO-TOKEN` header, which the GET requires, with
+      a cache key of unit id plus size so a new session does not invalidate the disk cache.
+- [ ] A non-image content type from the thumbnail GET is a failure and is never cached: without
+      the token DSM answers HTTP 200 with a JSON error body (plan 001).
 - [ ] Thumbnail size chosen per grid density; a larger size for the viewer.
 - [ ] Failure placeholder that does not look like an empty day.
 
