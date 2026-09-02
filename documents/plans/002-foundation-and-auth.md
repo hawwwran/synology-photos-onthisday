@@ -1,6 +1,6 @@
 # 002 - Foundation and sign-in
 
-- **Status:** Done, bar one acceptance check that waits for plan 003's first authenticated call
+- **Status:** Done
 - **Source:** plan.md §4, §5, §7, §8.1
 - **Depends on:** 001
 - **Blocks:** 004
@@ -50,11 +50,9 @@ No password is on disk at any point.
 ## Acceptance criteria
 
 - [x] A wrong password shows DSM's error and does not retry.
-- [ ] Killing the session on the NAS makes the next call re-prompt, not crash.
-      > Blocked: plan 002 makes no authenticated call, so there is no "next call" to exercise.
-      > The chain is built and unit-tested (`SynologyClient` throws `SessionExpired` on 105/106/
-      > 107/119, `SessionManager.onSessionExpired` marks the store, `AppRoot` then shows sign-in
-      > with the expired notice). Plan 003's first timeline call catches `SessionExpired` and
-      > calls `onSessionExpired`, which closes this.
+- [x] Killing the session on the NAS makes the next call re-prompt, not crash. Closed by plan 003:
+      `DayIndexRepository.refresh` catches `ApiFailure.SessionExpired` and calls
+      `SessionManager.onSessionExpired`, which flips the session store and returns `AppRoot` to
+      the sign-in screen with the expired notice. Exercised by `DayIndexRepositoryTest`.
 - [x] A search of the source finds no path that writes a password anywhere.
 - [x] MockWebServer tests cover the error envelope, expiry and the allowlist refusal.

@@ -2,8 +2,15 @@ package com.hawwwran.photosonthisday
 
 import android.app.Application
 import android.content.Context
+import androidx.room.Room
 import com.hawwwran.photosonthisday.api.AuthApi
+import com.hawwwran.photosonthisday.api.ItemApi
 import com.hawwwran.photosonthisday.api.SynologyClient
+import com.hawwwran.photosonthisday.api.TimelineApi
+import com.hawwwran.photosonthisday.core.currentMonthDay
+import com.hawwwran.photosonthisday.data.DayIndexRepository
+import com.hawwwran.photosonthisday.data.RoomDayIndexStore
+import com.hawwwran.photosonthisday.data.db.AppDatabase
 import com.hawwwran.photosonthisday.session.AccountDataWiper
 import com.hawwwran.photosonthisday.session.SessionManager
 import com.hawwwran.photosonthisday.session.SessionStore
@@ -27,8 +34,8 @@ class OnThisDayApp : Application() {
 }
 
 /**
- * The object graph, built once. Plan 003 adds the database and plan 004 the image loader;
- * each registers an [AccountDataWiper] so decision 006's wipe reaches it.
+ * The object graph, built once. Plan 004 adds the image loader; each cache registers an
+ * [AccountDataWiper] so decision 006's wipe reaches it.
  */
 class AppGraph(context: Context) {
 
@@ -48,10 +55,26 @@ class AppGraph(context: Context) {
 
     val client = SynologyClient(http)
     val authApi = AuthApi(client)
+    val timelineApi = TimelineApi(client)
+    val itemApi = ItemApi(client)
     val sessionStore = SessionStore(context.sessionDataStore)
 
-    /** Filled by later plans as their caches appear. Read at wipe time, so order of registration is free. */
+    private val database = Room.databaseBuilder(
+        context.applicationContext,
+        AppDatabase::class.java,
+        AppDatabase.NAME,
+    ).build()
+
+    /** Filled as caches appear; read at wipe time, so registration order is free. */
     val accountDataWipers = mutableListOf<AccountDataWiper>()
 
     val sessions = SessionManager(authApi, sessionStore, accountDataWipers)
+
+    val dayIndex = DayIndexRepository(
+        store = RoomDayIndexStore(database.dayIndexDao()),
+        timelineApi = timelineApi,
+        itemApi = itemApi,
+        today = { currentMonthDay() },
+        onSessionExpired = { sessions.onSessionExpired() },
+    ).also { accountDataWipers += it }
 }

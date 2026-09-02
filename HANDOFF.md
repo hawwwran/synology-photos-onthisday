@@ -21,11 +21,11 @@ per-account access and the app implements no permission logic. That is
 | Area | State |
 | --- | --- |
 | Gradle build | Works. `./gradlew testDebugUnitTest assembleDebug` is green, 6 tests pass |
-| App shell | Sign-in flow: `SynologyClient`/`AuthApi`, `SessionStore`/`SessionManager`, `SignInScreen`, `AppRoot`. Day screen still a placeholder |
+| App shell | Sign-in flow plus the day index: `TimelineApi` (flattens `data.section[]`), `DayIndexRepository` over a Room `DayIndexStore`, `DayScreen` summarising the chosen day. Grid and thumbnails are plan 004 |
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-005. 001 done, 002 done (one acceptance waits for 003), 003 partly |
+| Plans | 001-005. 001, 002, 003 done. 004 next |
 | Decisions | 001-007. 002, 004 and 005 amended today; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
@@ -50,11 +50,12 @@ trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-1. **Plan 003**, the day histogram and Room. It fetches both timelines through `SynologyClient`,
-   flattens `data.section[]` (dedup days), stores the histogram in Room scoped to the account,
-   and registers an `AccountDataWiper`. Its first call also closes plan 002's last acceptance
-   box: catch `ApiFailure.SessionExpired`, call `SessionManager.onSessionExpired()`.
-2. **Plan 004** after it: day screen, `start_time`/`end_time` fetch, Coil with `X-SYNO-TOKEN`.
+1. **Plan 004**, the day screen proper: a year strip and a per-year grid, items fetched by
+   `start_time`/`end_time` per namespace (add `Browse.Item` `list` to `ItemApi`), and a Coil
+   fetcher that attaches `X-SYNO-TOKEN` and treats a non-image content type as failure. It adds
+   its own `AccountDataWiper` for the thumbnail cache. `DayScreen` today is a text summary to be
+   replaced.
+2. **Plan 005** after it: viewer, download, hardening.
 3. **Optional second run as the owner.** The script carries probes for a cookie-borne session on
    thumbnail GETs (keeps session ids out of the proxy log) and for `device_id`. Nothing waits on it.
 
@@ -79,8 +80,8 @@ without the names.
 - Session id stored, password never. Expiry re-prompts. Trusted-device id kept. Built in plan 002.
 - HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no
   TLS code. The auto-block-sees-the-proxy exposure is accepted (Q4).
-- The day histogram lives in Room and answers day questions offline. A day's photos are fetched
-  by `start_time`/`end_time`; the offset arithmetic was verified once and retired.
+- The day histogram lives in Room and answers day questions offline (built in plan 003). A day's
+  photos are fetched by `start_time`/`end_time`; the offset arithmetic was verified once and retired.
 - One account per install. An account change wipes the index and every cache first.
 - Photos' own calendar-day boundaries are authoritative: the UTC date of `time`.
 

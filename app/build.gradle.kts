@@ -68,11 +68,21 @@ android {
         compose = true
     }
 
+    // Room exports the schema to app/schemas so a future migration has a baseline to diff.
+    // The androidTest source set reads it back to verify migrations on a device.
+    sourceSets {
+        getByName("androidTest").assets.srcDir(layout.projectDirectory.dir("schemas"))
+    }
+
     testOptions {
         unitTests {
             isReturnDefaultValues = true
         }
     }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
