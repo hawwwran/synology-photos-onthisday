@@ -12,3 +12,4 @@ captures/
 # album responses carry share passphrases and working sharing links, so no
 # capture from a real NAS is ever committed. See documents/research/README.md.
 documents/research/observation-*/
+__pycache__/
