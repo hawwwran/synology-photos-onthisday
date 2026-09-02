@@ -82,6 +82,8 @@ without the names.
 - Personal **and** shared space, merged. Every call once per namespace; rows keep their namespace.
 - Session id stored, password never. Expiry re-prompts. Trusted-device id kept. Built in plan 002.
 - Viewer, save-to-gallery, settings and the §2 hardening tests are built (plan 005).
+- Day browsing (prev/next, date picker) and full Czech localization with the "9. září" date format
+  were added after plan 004 at the owner's request; see plan 004 "Extensions".
 - HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no
   TLS code. The auto-block-sees-the-proxy exposure is accepted (Q4).
 - The day histogram lives in Room and answers day questions offline (built in plan 003). A day's

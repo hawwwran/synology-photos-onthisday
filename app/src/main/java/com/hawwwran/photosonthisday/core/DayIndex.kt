@@ -28,6 +28,25 @@ data class MonthDay(val month: Int, val day: Int) {
     val leapOrdinal: Int = LEAP_DAYS_BEFORE_MONTH[month - 1] + day
 }
 
+/** The calendar day at a given position in a leap year, the inverse of [MonthDay.leapOrdinal]. */
+fun monthDayFromLeapOrdinal(ordinal: Int): MonthDay {
+    require(ordinal in 1..DAYS_IN_LEAP_YEAR) { "ordinal out of range: $ordinal" }
+    var month = 1
+    while (month < 12 && LEAP_DAYS_BEFORE_MONTH[month] < ordinal) month++
+    return MonthDay(month, ordinal - LEAP_DAYS_BEFORE_MONTH[month - 1])
+}
+
+/** The next calendar day, wrapping 31 December to 1 January. 29 February is a day of its own. */
+fun MonthDay.nextDay(): MonthDay = monthDayFromLeapOrdinal(leapOrdinal % DAYS_IN_LEAP_YEAR + 1)
+
+/** The previous calendar day, wrapping 1 January back to 31 December. */
+fun MonthDay.previousDay(): MonthDay =
+    monthDayFromLeapOrdinal((leapOrdinal - 2 + DAYS_IN_LEAP_YEAR) % DAYS_IN_LEAP_YEAR + 1)
+
+/** The years that hold a given calendar day, newest first. Empty when no year does. */
+fun photosOn(index: List<DayBucket>, monthDay: MonthDay): List<DayBucket> =
+    index.filter { it.itemCount > 0 && it.monthDay == monthDay }.sortedByDescending { it.year }
+
 /** One day of one year that holds photos, as the Photos timeline reports it. */
 data class DayBucket(val year: Int, val monthDay: MonthDay, val itemCount: Int)
 

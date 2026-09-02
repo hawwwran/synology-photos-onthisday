@@ -35,6 +35,9 @@ sealed interface RefreshResult {
     data class Failed(val message: String) : RefreshResult
 }
 
+/** The stored histogram, merged across namespaces, and when it was last refreshed (null if never). */
+data class DayIndexData(val days: List<com.hawwwran.photosonthisday.core.DayBucket>, val refreshedAt: Long?)
+
 /**
  * The day index: cache first, network after (decision 005). Selection runs on the stored
  * histogram with no network, which is what makes the nearest-day fallback instant and offline.
@@ -51,6 +54,12 @@ class DayIndexRepository(
     private val onSessionExpired: suspend () -> Unit = {},
     private val staleAfterMillis: Long = DEFAULT_STALE_AFTER,
 ) : AccountDataWiper {
+
+    /** The merged day list and when it was last refreshed, for callers that pick the day themselves. */
+    fun observeDays(): Flow<DayIndexData> =
+        combine(store.buckets(), store.refreshedAt()) { buckets, refreshedAt ->
+            DayIndexData(merge(buckets), refreshedAt)
+        }
 
     /** The day to show, recomputed whenever the stored index changes. */
     fun observe(): Flow<DayIndexState> =

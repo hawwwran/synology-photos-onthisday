@@ -49,6 +49,22 @@ how far it is from today when it is not today.
       fetch shows DSM's mapped text per year and a screen-level refresh error.
 - [x] Pull to refresh triggers an index refresh, not just an item refetch.
 
+## Extensions after the plan, 2026-09-02
+
+Added at the owner's request, beyond the plan's scope:
+
+- **Browsing other days.** Previous/next arrows step one calendar day (wrapping the year,
+  29 February included, via `MonthDay.nextDay`/`previousDay`), and tapping the title opens a date
+  picker to jump to any day; only its month and day are used. The shown day is explicit state in
+  `DayViewModel`; the auto pick (today, or nearest with photos) is the default. A chosen day with
+  no photos shows an empty state, still browsable.
+- **Czech throughout.** All UI strings are Czech, with correct plurals for photo and day counts.
+  The day title is formatted "9. září" (day number, genitive month) by `MonthDay.czech()`.
+
+Both are covered by `DayStepTest` (day stepping and the Czech format) and verified on device:
+the arrows step 2. → 3. září, the picker jumps to 15. září, and the counts read "7 fotek",
+"3 fotky", "154 fotek" correctly.
+
 ## On-device verification, 2026-09-02
 
 Verified on the Vivo V2145 against the live NAS: the sign-in screen, then the day grid with real
