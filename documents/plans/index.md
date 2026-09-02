@@ -9,14 +9,15 @@ dependency column is.
 | [002](002-foundation-and-auth.md) | Foundation and sign-in | Done | 001 | 14 / 14 |
 | [003](003-day-index.md) | Day histogram and day selection | Done | 001 | 12 / 12 |
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
-| [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Not started | 004 | 0 / 11 |
+| [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Mostly done (2 blocked) | 004 | 9 / 11 |
 
 ```
 001 ─┬─> 002 ─┐
      └─> 003 ─┴─> 004 ──> 005
 ```
 
-001-004 are done. 005 (viewer, download, hardening) is next.
+001-004 are done. 005 is 9/11: the viewer, settings and hardening are done; the original-file
+download waits on observing `SYNO.Foto.Download`, and the release-signed build waits on a keystore.
 
 Plan 003's pure logic is already written and tested (`core/DayIndex.kt`), which is why it starts
 partly done.

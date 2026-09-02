@@ -25,7 +25,7 @@ per-account access and the app implements no permission logic. That is
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-005. 001-004 done and verified on device. 005 next |
+| Plans | 001-004 done. 005 is 9/11: viewer, settings, hardening done; download and release signing blocked |
 | Decisions | 001-007. 002, 004 and 005 amended today; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
@@ -50,12 +50,17 @@ trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-1. **Plan 005**: the fullscreen viewer (a pager over the day's photos across years, `LARGE`
-   thumbnail size already defined), download of the original (add `SYNO.Foto.Download` /
-   `SYNO.FotoTeam.Download` to the allowlist; they are present but not yet allowlisted), a
-   settings screen, and the hardening pass.
-2. **Optional second run as the owner.** The script carries probes for a cookie-borne session on
-   thumbnail GETs (keeps session ids out of the proxy log) and for `device_id`. Nothing waits on it.
+1. **One owner run of `scripts/observe-photos-api.sh`** settles the last unknowns: the
+   `SYNO.Foto.Download` parameter and version (needed to switch the save from the `xl` rendition
+   to the byte-original), whether the thumbnail GET works with a cookie-borne session, whether
+   `end_time` is inclusive, and whether `device_id` returns without a two-factor code. All are
+   reads; the download probe discards the body.
+2. **Create the release keystore** (`keystore.jks` + the `OTD_*` gradle properties, see
+   `CLAUDE.md`), then `assembleRelease` and confirm a release APK installs over a debug install.
+   These close plan 005's two blocked items.
+3. **Everything else in plan 005 is done and unit-tested**: the viewer, the save-to-gallery of
+   the largest rendition, settings (base URL, refresh policy, cache size and clear, sign out),
+   and the §2 hardening tests.
 
 ```bash
 cd ~/git/synology-photos-onthisday
@@ -76,6 +81,7 @@ without the names.
 - Photos web API is the only source. No backend, nothing deployed to the NAS.
 - Personal **and** shared space, merged. Every call once per namespace; rows keep their namespace.
 - Session id stored, password never. Expiry re-prompts. Trusted-device id kept. Built in plan 002.
+- Viewer, save-to-gallery, settings and the §2 hardening tests are built (plan 005).
 - HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no
   TLS code. The auto-block-sees-the-proxy exposure is accepted (Q4).
 - The day histogram lives in Room and answers day questions offline (built in plan 003). A day's

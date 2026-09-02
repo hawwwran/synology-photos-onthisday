@@ -14,6 +14,7 @@ import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.TimelineApi
 import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.data.DayIndexRepository
+import com.hawwwran.photosonthisday.data.ImageSaver
 import com.hawwwran.photosonthisday.data.RoomDayIndexStore
 import com.hawwwran.photosonthisday.data.ThumbnailCacheWiper
 import com.hawwwran.photosonthisday.data.db.AppDatabase
@@ -88,6 +89,8 @@ class AppGraph(context: Context) {
 
     /** Cleared only when the account changes, so a same-account sign-out keeps cached images. */
     private val thumbnailWiper = ThumbnailCacheWiper(context.applicationContext)
+
+    val imageSaver = ImageSaver(context.applicationContext, http)
 
     val sessions = SessionManager(authApi, sessionStore, accountDataWipers, listOf(thumbnailWiper))
 

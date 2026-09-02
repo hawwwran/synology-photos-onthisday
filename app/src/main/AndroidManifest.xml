@@ -3,6 +3,10 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Saving to the gallery on API <= 28 needs this; API 29+ uses scoped MediaStore with none. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
     <!-- No android:usesCleartextTraffic and no network-security-config: the NAS is
          reached over HTTPS with a publicly trusted certificate. See decision 004. -->

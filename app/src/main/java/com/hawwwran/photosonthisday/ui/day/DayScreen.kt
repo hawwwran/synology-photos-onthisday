@@ -1,5 +1,6 @@
 package com.hawwwran.photosonthisday.ui.day
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -47,7 +49,13 @@ import com.hawwwran.photosonthisday.data.DayIndexState
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DayScreen(viewModel: DayViewModel, auth: ThumbnailAuth, onSignOut: () -> Unit) {
+fun DayScreen(
+    viewModel: DayViewModel,
+    auth: ThumbnailAuth,
+    onOpenPhoto: (Int) -> Unit,
+    onOpenSettings: () -> Unit,
+    onSignOut: () -> Unit,
+) {
     val state by viewModel.state.collectAsState()
     val sections by viewModel.sections.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
@@ -59,6 +67,9 @@ fun DayScreen(viewModel: DayViewModel, auth: ThumbnailAuth, onSignOut: () -> Uni
                 actions = {
                     IconButton(onClick = viewModel::refresh, enabled = !refreshing) {
                         Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.day_refresh))
+                    }
+                    IconButton(onClick = onOpenSettings) {
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
                     }
                     IconButton(onClick = onSignOut) {
                         Icon(Icons.Filled.Logout, contentDescription = stringResource(R.string.sign_out))
@@ -84,7 +95,7 @@ fun DayScreen(viewModel: DayViewModel, auth: ThumbnailAuth, onSignOut: () -> Uni
                     onRefresh = viewModel::refresh,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    DayGrid(current.selection, sections, auth)
+                    DayGrid(current.selection, sections, auth, onOpenPhoto)
                 }
             }
         }
@@ -92,7 +103,17 @@ fun DayScreen(viewModel: DayViewModel, auth: ThumbnailAuth, onSignOut: () -> Uni
 }
 
 @Composable
-private fun DayGrid(selection: DaySelection, sections: List<YearSection>, auth: ThumbnailAuth) {
+private fun DayGrid(
+    selection: DaySelection,
+    sections: List<YearSection>,
+    auth: ThumbnailAuth,
+    onOpenPhoto: (Int) -> Unit,
+) {
+    // Running index across all years, matching DayViewModel.viewerItems order.
+    val baseIndex = HashMap<Int, Int>().also { map ->
+        var running = 0
+        sections.forEach { map[it.year] = running; running += it.items.size }
+    }
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 108.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
@@ -133,17 +154,19 @@ private fun DayGrid(selection: DaySelection, sections: List<YearSection>, auth: 
                     Text(message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(8.dp))
                 }
             }
+            val start = baseIndex[section.year] ?: 0
             itemsIndexed(
                 items = section.items,
                 key = { _, item -> "${section.year}:${item.space.name}:${item.id}" },
-            ) { _, item ->
+            ) { localIndex, item ->
                 Thumbnail(
                     ref = ThumbnailRef(item.space, item.unitId, item.cacheKey, ThumbnailSize.MEDIUM),
                     auth = auth,
                     isVideo = item.isVideo,
                     modifier = Modifier
                         .aspectRatio(1f)
-                        .clip(RoundedCornerShape(6.dp)),
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onOpenPhoto(start + localIndex) },
                 )
             }
         }
