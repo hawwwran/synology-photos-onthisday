@@ -47,6 +47,15 @@ plan.md §2 backed by something that fails when it is broken.
       > the keystore is present. Creating `keystore.jks` and the `OTD_*` gradle properties is the
       > remaining owner step; then `assembleRelease` and the install-over-debug check can run.
 
+## On-device verification, 2026-09-02
+
+Verified on the Vivo V2145 against the live NAS: tapping a grid photo opens the fullscreen
+viewer with the large rendition, the year and taken time overlaid and clear of the status bar
+(an inset collision was found and fixed), pinch-zoom, and Save writing `OnThisDay-<id>.jpg` into
+the gallery (confirmed in MediaStore). Settings shows the NAS, account, the refresh policy, the
+thumbnail cache size and a clear action, and sign out. Screenshots are in the session scratchpad,
+not committed.
+
 ## plan.md §2 safety rules, mapped
 
 - **Read-only Photos.** `HardeningTest`: every allowlisted method is a read verb, and no
