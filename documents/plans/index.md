@@ -10,6 +10,7 @@ dependency column is.
 | [003](003-day-index.md) | Day histogram and day selection | Done | 001 | 12 / 12 |
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
 | [005](005-viewer-and-hardening.md) | Viewer, download, hardening | 10/11 (release build waits on keystore) | 004 | 10 / 11 |
+| [006](006-likes.md) | Liking photos, stored on the NAS | Draft, for review | 005 + decision 008 | 0 / — |
 
 ```
 001 ─┬─> 002 ─┐
