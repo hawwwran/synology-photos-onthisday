@@ -6,8 +6,8 @@ dependency column is.
 | Plan | Title | Status | Depends on | Progress |
 | --- | --- | --- | --- | --- |
 | [001](001-api-observation.md) | API observation | Done, U6 dropped | nothing | 8 / 9 |
-| [002](002-foundation-and-auth.md) | Foundation and sign-in | Done (one acceptance check waits for 003) | 001 | 14 / 14 |
-| [003](003-day-index.md) | Day histogram and day selection | Partly done | 001 | 3 / 12 |
+| [002](002-foundation-and-auth.md) | Foundation and sign-in | Done | 001 | 14 / 14 |
+| [003](003-day-index.md) | Day histogram and day selection | Done | 001 | 12 / 12 |
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Not started | 002, 003 | 0 / 14 |
 | [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Not started | 004 | 0 / 11 |
 
@@ -15,6 +15,8 @@ dependency column is.
 001 ─┬─> 002 ─┐
      └─> 003 ─┴─> 004 ──> 005
 ```
+
+001, 002 and 003 are done. 004 (day screen, paging by time range, thumbnails) is next, then 005.
 
 Plan 003's pure logic is already written and tested (`core/DayIndex.kt`), which is why it starts
 partly done.

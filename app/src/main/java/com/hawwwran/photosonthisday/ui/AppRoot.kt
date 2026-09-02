@@ -14,7 +14,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.hawwwran.photosonthisday.AppGraph
 import com.hawwwran.photosonthisday.session.SessionState
-import com.hawwwran.photosonthisday.ui.day.DayPlaceholderScreen
+import com.hawwwran.photosonthisday.ui.day.DayScreen
+import com.hawwwran.photosonthisday.ui.day.DayViewModel
 import com.hawwwran.photosonthisday.ui.signin.SignInScreen
 import com.hawwwran.photosonthisday.ui.signin.SignInViewModel
 import kotlinx.coroutines.launch
@@ -45,10 +46,20 @@ fun AppRoot(graph: AppGraph) {
             SignInScreen(viewModel)
         }
 
-        is SessionState.SignedIn -> DayPlaceholderScreen(
-            account = current.session.account,
-            host = current.session.baseUrl.host,
-            onSignOut = { scope.launch { graph.sessions.signOut() } },
-        )
+        is SessionState.SignedIn -> {
+            // Keyed on the sid so a re-login after expiry builds a view model bound to the new session.
+            val dayViewModel: DayViewModel = viewModel(
+                key = "day-${current.session.credentials.sid}",
+                factory = viewModelFactory {
+                    initializer { DayViewModel(graph.dayIndex, current.session) }
+                },
+            )
+            DayScreen(
+                viewModel = dayViewModel,
+                account = current.session.account,
+                host = current.session.baseUrl.host,
+                onSignOut = { scope.launch { graph.sessions.signOut() } },
+            )
+        }
     }
 }
