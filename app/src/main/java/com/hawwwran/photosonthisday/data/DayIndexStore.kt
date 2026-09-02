@@ -1,7 +1,9 @@
 package com.hawwwran.photosonthisday.data
 
+import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.api.Space
 import com.hawwwran.photosonthisday.core.DayBucket
+import com.hawwwran.photosonthisday.core.MonthDay
 import kotlinx.coroutines.flow.Flow
 
 /** One day of one namespace, as stored: the namespace is kept so plan 004 knows where to fetch. */
@@ -23,6 +25,12 @@ interface DayIndexStore {
     suspend fun replace(space: Space, days: List<DayBucket>)
 
     suspend fun setRefreshedAt(epochMillis: Long)
+
+    /** The cached items of one calendar day, both namespaces, newest first. Empty until fetched. */
+    fun items(year: Int, monthDay: MonthDay): Flow<List<PhotoItem>>
+
+    /** Replace one namespace's items for one day, so a reopen reflects a changed day exactly. */
+    suspend fun replaceDayItems(space: Space, year: Int, monthDay: MonthDay, items: List<PhotoItem>)
 
     /** Decision 006: drop everything so another account cannot be seen through a stale index. */
     suspend fun clear()

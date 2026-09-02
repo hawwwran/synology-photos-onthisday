@@ -15,6 +15,21 @@ interface DayIndexDao {
     @Query("SELECT refreshedAt FROM index_meta WHERE id = 0")
     fun refreshedAt(): Flow<Long?>
 
+    @Query("SELECT * FROM item_row WHERE year = :year AND month = :month AND day = :day ORDER BY takenTime DESC, id DESC")
+    fun itemsForDay(year: Int, month: Int, day: Int): Flow<List<ItemRowEntity>>
+
+    @Transaction
+    suspend fun replaceDayItems(namespace: String, year: Int, month: Int, day: Int, rows: List<ItemRowEntity>) {
+        deleteDayItems(namespace, year, month, day)
+        insertItems(rows)
+    }
+
+    @Insert
+    suspend fun insertItems(rows: List<ItemRowEntity>)
+
+    @Query("DELETE FROM item_row WHERE namespace = :namespace AND year = :year AND month = :month AND day = :day")
+    suspend fun deleteDayItems(namespace: String, year: Int, month: Int, day: Int)
+
     /** A namespace's rows are replaced as a unit, so a vanished day leaves no stale row behind. */
     @Transaction
     suspend fun replaceNamespace(namespace: String, rows: List<DayBucketEntity>) {
@@ -35,6 +50,7 @@ interface DayIndexDao {
     suspend fun clear() {
         clearBuckets()
         clearMeta()
+        clearItems()
     }
 
     @Query("DELETE FROM day_bucket")
@@ -42,4 +58,7 @@ interface DayIndexDao {
 
     @Query("DELETE FROM index_meta")
     suspend fun clearMeta()
+
+    @Query("DELETE FROM item_row")
+    suspend fun clearItems()
 }

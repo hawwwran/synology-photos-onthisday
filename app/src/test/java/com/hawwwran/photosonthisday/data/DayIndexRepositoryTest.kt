@@ -55,6 +55,13 @@ class DayIndexRepositoryTest {
 
     private fun count(n: Int) = """{"success":true,"data":{"count":$n}}"""
 
+    private fun items(vararg ids: Pair<Int, Long>): String {
+        val list = ids.joinToString(",") { (id, time) ->
+            """{"id":$id,"time":$time,"type":"photo","additional":{"thumbnail":{"cache_key":"${id}_1","unit_id":$id},"resolution":{"width":4000,"height":3000}}}"""
+        }
+        return """{"success":true,"data":{"list":[$list]}}"""
+    }
+
     @Test
     fun `nothing stored and never refreshed is Loading`() = runTest {
         assertEquals(DayIndexState.Loading, repo().observe().first())
@@ -163,5 +170,39 @@ class DayIndexRepositoryTest {
 
         assertEquals(1, store.clears)
         assertTrue(store.buckets().first().isEmpty())
+    }
+
+    @Test
+    fun `fetchDay fetches both namespaces and caches them newest first`() = runTest {
+        // fetchDay loops Space.entries = [PERSONAL, SHARED]; each is one page under PAGE_SIZE.
+        enqueue(items(101 to 1_700_000_100L, 100 to 1_700_000_000L)) // personal
+        enqueue(items(200 to 1_700_000_050L)) // shared
+
+        val result = repo().fetchDay(session(), 2024, MonthDay(9, 2))
+
+        assertEquals(RefreshResult.Success, result)
+        val cached = store.items(2024, MonthDay(9, 2)).first()
+        assertEquals(listOf(101, 200, 100), cached.map { it.id })
+        assertEquals(setOf(Space.PERSONAL, Space.SHARED), cached.map { it.space }.toSet())
+    }
+
+    @Test
+    fun `fetchDay reports a failed call and caches nothing for it`() = runTest {
+        enqueue("""{"success":false,"error":{"code":120}}""")
+
+        val result = repo().fetchDay(session(), 2024, MonthDay(9, 2))
+
+        assertTrue(result is RefreshResult.Failed)
+    }
+
+    @Test
+    fun `fetchDay on an expired session reports it and calls back`() = runTest {
+        var expired = false
+        enqueue("""{"success":false,"error":{"code":119}}""")
+
+        val result = repo { expired = true }.fetchDay(session(), 2024, MonthDay(9, 2))
+
+        assertEquals(RefreshResult.SessionExpired, result)
+        assertTrue(expired)
     }
 }

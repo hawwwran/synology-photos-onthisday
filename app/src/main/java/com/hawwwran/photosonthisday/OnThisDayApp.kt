@@ -2,6 +2,11 @@ package com.hawwwran.photosonthisday
 
 import android.app.Application
 import android.content.Context
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.crossfade
 import androidx.room.Room
 import com.hawwwran.photosonthisday.api.AuthApi
 import com.hawwwran.photosonthisday.api.ItemApi
@@ -23,7 +28,7 @@ import java.util.concurrent.TimeUnit
  * construction rather than a DI framework (decision 007): the graph is small enough to read
  * in one screen.
  */
-class OnThisDayApp : Application() {
+class OnThisDayApp : Application(), SingletonImageLoader.Factory {
     lateinit var graph: AppGraph
         private set
 
@@ -31,6 +36,18 @@ class OnThisDayApp : Application() {
         super.onCreate()
         graph = AppGraph(this)
     }
+
+    /**
+     * One image loader for the app, fetching over the same OkHttp client as the API so the TLS
+     * and no-cleartext rules hold for images too. Thumbnails are cached by a session-independent
+     * key (see [com.hawwwran.photosonthisday.api.ThumbnailRef]), so its default disk cache
+     * survives a sign-out.
+     */
+    override fun newImageLoader(context: PlatformContext): ImageLoader =
+        ImageLoader.Builder(context)
+            .components { add(OkHttpNetworkFetcherFactory(callFactory = { graph.http })) }
+            .crossfade(true)
+            .build()
 }
 
 /**

@@ -16,6 +16,7 @@ import com.hawwwran.photosonthisday.AppGraph
 import com.hawwwran.photosonthisday.session.SessionState
 import com.hawwwran.photosonthisday.ui.day.DayScreen
 import com.hawwwran.photosonthisday.ui.day.DayViewModel
+import com.hawwwran.photosonthisday.ui.day.ThumbnailAuth
 import com.hawwwran.photosonthisday.ui.signin.SignInScreen
 import com.hawwwran.photosonthisday.ui.signin.SignInViewModel
 import kotlinx.coroutines.launch
@@ -56,8 +57,11 @@ fun AppRoot(graph: AppGraph) {
             )
             DayScreen(
                 viewModel = dayViewModel,
-                account = current.session.account,
-                host = current.session.baseUrl.host,
+                auth = ThumbnailAuth(
+                    baseUrl = current.session.baseUrl,
+                    sid = current.session.credentials.sid,
+                    token = current.session.credentials.synotoken,
+                ),
                 onSignOut = { scope.launch { graph.sessions.signOut() } },
             )
         }
