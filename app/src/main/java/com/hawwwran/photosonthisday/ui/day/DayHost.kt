@@ -16,6 +16,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import coil3.SingletonImageLoader
 import com.hawwwran.photosonthisday.AppGraph
 import com.hawwwran.photosonthisday.R
+import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.data.DayIndexRepository
 import com.hawwwran.photosonthisday.data.SaveResult
 import com.hawwwran.photosonthisday.session.Session
@@ -40,7 +41,7 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     val viewModel: DayViewModel = viewModel(
         key = "day-${session.credentials.sid}",
-        factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, session) } },
+        factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, session, currentMonthDay()) } },
     )
     val auth = ThumbnailAuth(session.baseUrl, session.credentials.sid, session.credentials.synotoken)
     val viewerItems by viewModel.viewerItems.collectAsState()

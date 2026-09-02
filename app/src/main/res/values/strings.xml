@@ -1,34 +1,48 @@
 <resources>
     <string name="app_name">On This Day</string>
 
-    <string name="signin_intro">Sign in with your Synology account. The password is used once and never stored.</string>
-    <string name="signin_expired">The NAS ended your previous session. Sign in again to continue.</string>
-    <string name="signin_host">NAS address</string>
-    <string name="signin_account">Account</string>
-    <string name="signin_password">Password</string>
-    <string name="signin_otp">Two-factor code</string>
-    <string name="signin_submit">Sign in</string>
-    <string name="signin_autoblock_note">The NAS blocks an address after several failed attempts. Check the details before trying again; nothing is retried on its own.</string>
+    <string name="signin_intro">Přihlas se svým účtem Synology. Heslo se použije jednou a nikam se neukládá.</string>
+    <string name="signin_expired">NAS ukončil tvé předchozí přihlášení. Přihlas se znovu.</string>
+    <string name="signin_host">Adresa NAS</string>
+    <string name="signin_account">Účet</string>
+    <string name="signin_password">Heslo</string>
+    <string name="signin_otp">Dvoufázový kód</string>
+    <string name="signin_submit">Přihlásit</string>
+    <string name="signin_autoblock_note">NAS po několika neúspěšných pokusech adresu zablokuje. Zkontroluj údaje, než to zkusíš znovu; nic se neopakuje automaticky.</string>
 
-    <string name="day_no_photos">This library has no photos yet.</string>
-    <string name="day_heading">%1$d/%2$d</string>
-    <string name="day_fallback">Nearest day with photos, %1$d days %2$s.</string>
-    <string name="day_ago">ago</string>
-    <string name="day_ahead">ahead</string>
-    <string name="day_year_count">%1$d photos</string>
-    <string name="day_refresh">Refresh</string>
-    <string name="sign_out">Sign out</string>
+    <string name="day_no_photos">V této knihovně zatím nejsou žádné fotky.</string>
+    <string name="day_empty">Na tento den nemáš žádné fotky.</string>
+    <string name="day_fallback">Nejbližší den s fotkami, %1$s %2$s.</string>
+    <string name="day_ago">zpět</string>
+    <string name="day_ahead">dopředu</string>
+    <string name="day_refresh">Obnovit</string>
+    <string name="day_previous">Předchozí den</string>
+    <string name="day_next">Další den</string>
+    <string name="day_pick_confirm">Zobrazit</string>
+    <string name="day_pick_cancel">Zrušit</string>
+    <string name="sign_out">Odhlásit</string>
 
-    <string name="viewer_back">Back</string>
-    <string name="viewer_save">Save a copy</string>
-    <string name="viewer_saved">Saved to your photos.</string>
+    <plurals name="day_photo_count">
+        <item quantity="one">%d fotka</item>
+        <item quantity="few">%d fotky</item>
+        <item quantity="other">%d fotek</item>
+    </plurals>
+    <plurals name="day_count">
+        <item quantity="one">%d den</item>
+        <item quantity="few">%d dny</item>
+        <item quantity="other">%d dní</item>
+    </plurals>
 
-    <string name="settings_title">Settings</string>
+    <string name="viewer_back">Zpět</string>
+    <string name="viewer_save">Uložit kopii</string>
+    <string name="viewer_saved">Uloženo do fotek.</string>
+
+    <string name="settings_title">Nastavení</string>
     <string name="settings_nas">NAS</string>
-    <string name="settings_account">Account</string>
-    <string name="settings_refresh">Refresh</string>
-    <string name="settings_refresh_value">Every %1$d hours, and on pull to refresh</string>
-    <string name="settings_cache">Thumbnail cache</string>
-    <string name="settings_cache_measuring">Measuring…</string>
-    <string name="settings_clear_cache">Clear cache</string>
+    <string name="settings_account">Účet</string>
+    <string name="settings_refresh">Obnovování</string>
+    <string name="settings_refresh_value">Každých %1$d hodin a při tažení dolů</string>
+    <string name="settings_cache">Mezipaměť náhledů</string>
+    <string name="settings_cache_measuring">Zjišťuji…</string>
+    <string name="settings_clear_cache">Vymazat mezipaměť</string>
 </resources>
