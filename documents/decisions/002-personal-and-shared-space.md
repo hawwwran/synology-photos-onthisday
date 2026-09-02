@@ -48,6 +48,10 @@ disk and shows twice, which is the honest answer.
   ever appears, the test is `Browse.Item` `count` on `SYNO.FotoTeam` as that account against the
   owner's count: equal means the shared space ignores folder permission and this decision needs
   a real answer.
+- 2026-09-02, later: with [[005-day-index-on-device]] amended to fetch a day by time range,
+  there are no running totals to keep per namespace. What remains of the leak is smaller: every
+  call is still made once per namespace, and every stored row keeps its namespace so the
+  thumbnail is fetched from the matching `Thumbnail` api.
 
 ## Related
 
