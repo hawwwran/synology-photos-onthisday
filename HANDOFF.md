@@ -25,7 +25,7 @@ per-account access and the app implements no permission logic. That is
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-004 done. 005 is 10/11: only the release-signed build remains (needs a keystore) |
+| Plans | 001-005 done bar the release build. 006 (likes on the NAS) built, live test pending |
 | Decisions | 001-007. 002, 004 and 005 amended today; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
@@ -51,13 +51,21 @@ trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-1. **Create the release keystore** (`keystore.jks` at the repo root + the `OTD_*` gradle
+Two things need the phone reconnected tomorrow (2026-09-03):
+
+1. **Live-test likes (plan 006, decision 008).** Reconnect the phone, sign in, like a photo. Verify
+   `likes.json` is written to the NAS folder (default `/home/OnThisDay`), the liked item floats to
+   the top of its year, and the heart persists after a refresh. If the write fails because
+   `/home` is not writable for the account, change the folder in Settings to a share the account
+   can write, and retry. The first live write is the only thing not yet proven: the File Station
+   endpoints are from Synology's docs and `SYNO.API.Info` versions, not from a live run.
+2. **Create the release keystore** (`keystore.jks` at the repo root + the `OTD_*` gradle
    properties in `~/.gradle/gradle.properties`, see `CLAUDE.md`), then `./gradlew assembleRelease`
    and confirm a release APK installs over a debug install. This is plan 005's last box.
-2. **Everything else is done and verified on device**: sign-in, the day grid, browsing days
-   (prev/next and the date picker), the fullscreen viewer, saving the original to the gallery,
-   settings, Czech localization, and the §2 hardening tests. The second observation run settled
-   the download endpoint, the cookie-borne session, `end_time` inclusivity and `device_id`.
+
+Everything else is done and verified on device: sign-in, the day grid, browsing days (prev/next
+and the date picker), the fullscreen viewer with video playback and share, saving the original to
+the gallery, settings, Czech localization, and the §2 hardening tests.
 
 ```bash
 cd ~/git/synology-photos-onthisday
@@ -89,6 +97,8 @@ without the names.
 - One account per install. An account change wipes the index and thumbnail cache first; a
   same-account sign-out keeps the thumbnail cache so a re-login does not re-download (006 amended).
 - Photos' own calendar-day boundaries are authoritative: the UTC date of `time`.
+- Photos is read-only. The only NAS write is the app's own `likes.json` over File Station
+  (decision 008); the write allowlist is held apart from the read allowlist.
 
 ## Three things worth not forgetting
 
