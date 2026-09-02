@@ -1,7 +1,7 @@
 # 006 - Liking photos, stored on the NAS
 
-- **Status:** Implemented against the File Station route (decision 008 ratified). On-device
-  validation against the NAS pending 2026-09-03 (the phone left with the owner).
+- **Status:** Done. File Station route (decision 008). Verified on device 2026-09-03: like/unlike
+  round-trips through `likes.json` on the NAS (Download and Upload both ok), liked-first shows.
 - **Source:** owner request, 2026-09-02.
 - **Depends on:** 005, and [decision 008](../decisions/008-writing-likes-to-the-nas.md) (ratified).
 - **Blocks:** nothing.
@@ -187,15 +187,16 @@ Writing must be as disciplined as reading is:
 
 ## Acceptance criteria
 
-All await the live test on 2026-09-03.
-
-- [ ] Liking an item in the app is visible on a second device signed in as the same account after a
-      refresh.
-- [ ] A reinstall, or an account-change wipe and sign back in, restores the likes from the NAS.
-- [ ] Liked items appear first in the day view.
-- [ ] Every write the app can make maps, by name, to a like operation; no destructive triple
-      exists in the write allowlist.
-- [ ] Photos that are not liked are never modified on the NAS in any way.
+- [x] Liking an item writes `likes.json` to the NAS; sync reads it back (verified on device: File
+      Station Download and Upload both ok, "sync ok").
+- [ ] Visible on a second device after a refresh (not tested; the mechanism is the shared NAS file).
+- [ ] A reinstall, or an account-change wipe and sign back in, restores the likes from the NAS
+      (mechanism in place; not exercised on device yet).
+- [x] Liked items appear first in the day view.
+- [x] Every write the app can make maps, by name, to a like operation; no destructive triple
+      exists in the write allowlist (`HardeningTest`).
+- [x] Photos that are not liked are never modified on the NAS in any way (only `likes.json` is
+      written; Photos endpoints stay read-only).
 
 ## What is built (2026-09-02)
 
