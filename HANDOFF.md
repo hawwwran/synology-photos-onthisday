@@ -25,7 +25,7 @@ per-account access and the app implements no permission logic. That is
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-004 done. 005 is 9/11: viewer, settings, hardening done; download and release signing blocked |
+| Plans | 001-004 done. 005 is 10/11: only the release-signed build remains (needs a keystore) |
 | Decisions | 001-007. 002, 004 and 005 amended today; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
@@ -43,24 +43,21 @@ after which the histogram sums exactly to the item count in both namespaces (25,
 checked live and held, then was retired: the item list **does** accept `start_time`/`end_time`
 in epoch seconds (and silently ignores `time_start`/`time_end`), so a day is fetched by range. Thumbnails come from a GET, but only with the
 `X-SYNO-TOKEN` header; without it the same URL returns a JSON error with HTTP 200. `time` is
-seconds, `indexed_time` milliseconds. Timeline days are the UTC calendar date of `time`, and
+seconds, `indexed_time` milliseconds. The original file downloads from `SYNO.Foto.Download`
+`download` v2 (`unit_id=[id]`). Timeline days are the UTC calendar date of `time`, and
 `time` is the camera's wall clock stored as if UTC (owner confirmed a 20:22 photo carries 20:22
 UTC), so a day is the date the photo was taken on wherever it was taken. The login's
 trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-1. **One owner run of `scripts/observe-photos-api.sh`** settles the last unknowns: the
-   `SYNO.Foto.Download` parameter and version (needed to switch the save from the `xl` rendition
-   to the byte-original), whether the thumbnail GET works with a cookie-borne session, whether
-   `end_time` is inclusive, and whether `device_id` returns without a two-factor code. All are
-   reads; the download probe discards the body.
-2. **Create the release keystore** (`keystore.jks` + the `OTD_*` gradle properties, see
-   `CLAUDE.md`), then `assembleRelease` and confirm a release APK installs over a debug install.
-   These close plan 005's two blocked items.
-3. **Everything else in plan 005 is done and unit-tested**: the viewer, the save-to-gallery of
-   the largest rendition, settings (base URL, refresh policy, cache size and clear, sign out),
-   and the §2 hardening tests.
+1. **Create the release keystore** (`keystore.jks` at the repo root + the `OTD_*` gradle
+   properties in `~/.gradle/gradle.properties`, see `CLAUDE.md`), then `./gradlew assembleRelease`
+   and confirm a release APK installs over a debug install. This is plan 005's last box.
+2. **Everything else is done and verified on device**: sign-in, the day grid, browsing days
+   (prev/next and the date picker), the fullscreen viewer, saving the original to the gallery,
+   settings, Czech localization, and the §2 hardening tests. The second observation run settled
+   the download endpoint, the cookie-borne session, `end_time` inclusivity and `device_id`.
 
 ```bash
 cd ~/git/synology-photos-onthisday
