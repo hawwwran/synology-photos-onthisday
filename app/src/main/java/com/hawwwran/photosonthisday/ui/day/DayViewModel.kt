@@ -66,8 +66,12 @@ class DayViewModel(
     private val repository: DayIndexRepository,
     private val likes: LikeRepository,
     private val session: Session,
-    private val today: MonthDay,
+    initialToday: MonthDay,
+    private val todayProvider: () -> MonthDay = { com.hawwwran.photosonthisday.core.currentMonthDay() },
 ) : ViewModel() {
+
+    /** "What is today", updatable so the app can roll to a new day when the date changes. */
+    private val today = MutableStateFlow(initialToday)
 
     /** The keys currently liked, for the heart indicator and the liked-first order. */
     val likedKeys: StateFlow<Set<String>> =
@@ -78,16 +82,23 @@ class DayViewModel(
     private val reloadTick = MutableStateFlow(0)
 
     val dayView: StateFlow<DayViewState> =
-        combine(repository.observeDays(), selectedDay, ::computeView)
+        combine(repository.observeDays(), selectedDay, today) { data, selected, td -> computeView(data, selected, td) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayViewState.Loading)
 
     private val _sections = MutableStateFlow<List<YearSection>>(emptyList())
 
-    /** Year sections with liked items floated to the front of each year (stable otherwise). */
+    /**
+     * The liked set frozen at day load, used only for ordering. Liking or unliking after that
+     * updates the heart (via [likedKeys]) but does not move the item under the user's finger; the
+     * order is recomputed only when the day is (re)loaded.
+     */
+    private val orderKeys = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Year sections with liked items floated to the front of each year, by the day-load snapshot. */
     val sections: StateFlow<List<YearSection>> =
-        combine(_sections, likedKeys) { list, liked ->
+        combine(_sections, orderKeys) { list, order ->
             list.map { section ->
-                section.copy(items = section.items.sortedByDescending { liked.contains(likeKey(it.space, it.unitId)) })
+                section.copy(items = section.items.sortedByDescending { order.contains(likeKey(it.space, it.unitId)) })
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -97,10 +108,10 @@ class DayViewModel(
      * the moment the viewer opens; the viewer holds this fixed so a like toggle does not reshuffle.
      */
     fun viewerSnapshot(): List<ViewerItem> {
-        val liked = likedKeys.value
+        val order = orderKeys.value
         return _sections.value.flatMap { section ->
             section.items
-                .sortedByDescending { liked.contains(likeKey(it.space, it.unitId)) }
+                .sortedByDescending { order.contains(likeKey(it.space, it.unitId)) }
                 .map { ViewerItem(section.year, it) }
         }
     }
@@ -146,8 +157,8 @@ class DayViewModel(
         }
     }
 
-    private fun computeView(data: DayIndexData, selected: MonthDay?): DayViewState {
-        if (data.days.isNotEmpty()) return shownFor(data.days, selected)
+    private fun computeView(data: DayIndexData, selected: MonthDay?, today: MonthDay): DayViewState {
+        if (data.days.isNotEmpty()) return shownFor(data.days, selected, today)
         return if (data.refreshedAt != null) DayViewState.NoPhotos else DayViewState.Loading
     }
 
@@ -172,6 +183,16 @@ class DayViewModel(
 
     fun clearSelection() {
         _selected.value = emptySet()
+    }
+
+    /**
+     * Roll to the current day. Called when the app comes to the front and the calendar date has
+     * changed (e.g. midnight passed while the phone was locked), so it always reopens on "today"
+     * without interrupting a same-day session.
+     */
+    fun refreshToday() {
+        today.value = todayProvider()
+        selectedDay.value = null
     }
 
     /** The selected items, resolved from the shown day, in display order. */
@@ -199,7 +220,7 @@ class DayViewModel(
 
     private fun shownMonthDay(): MonthDay? = (dayView.value as? DayViewState.Shown)?.monthDay
 
-    private fun shownFor(days: List<DayBucket>, selected: MonthDay?): DayViewState.Shown {
+    private fun shownFor(days: List<DayBucket>, selected: MonthDay?, today: MonthDay): DayViewState.Shown {
         if (selected == null) {
             // Auto: today across the years, or the nearest day that holds anything.
             val auto = selectDay(days, today)!!
@@ -221,6 +242,7 @@ class DayViewModel(
     }
 
     private suspend fun loadSections(monthDay: MonthDay, years: List<DayBucket>) = coroutineScope {
+        orderKeys.value = likedKeys.value // freeze the liked-first order for this day visit
         _sections.value = years.map { YearSection(it.year, it.itemCount) }
         years.forEach { yearBucket ->
             val year = yearBucket.year
