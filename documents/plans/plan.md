@@ -140,8 +140,11 @@ that an expired session shows the last day rather than a blank screen behind a l
 
 ## 9. Non-goals
 
-Albums, search, faces, places, editing, upload, sharing, video playback beyond what the system
-player does with a downloaded file, and any write to the NAS. Not in this app.
+Albums, search, faces, places, editing, upload, sharing, and any write to the NAS. Not in this app.
+
+Amended 2026-09-02 at the owner's request: a video opened in the viewer now plays in the app,
+with the classic seek bar and play/pause, streamed from the download endpoint. The other
+non-goals stand.
 
 ## 10. Decided
 

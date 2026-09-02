@@ -23,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,6 +34,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.ui.PlayerView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,6 +47,8 @@ import coil3.compose.AsyncImage
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import com.hawwwran.photosonthisday.R
+import com.hawwwran.photosonthisday.api.DownloadUrls
+import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.ThumbnailRef
 import com.hawwwran.photosonthisday.api.ThumbnailSize
 import com.hawwwran.photosonthisday.api.ThumbnailUrls
@@ -69,7 +79,12 @@ fun ViewerScreen(
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            ZoomableImage(items[page], auth)
+            val entry = items[page]
+            if (entry.item.isVideo) {
+                VideoPage(entry, auth, isActive = page == pagerState.currentPage)
+            } else {
+                ZoomableImage(entry, auth)
+            }
         }
 
         val current = items[pagerState.currentPage]
@@ -98,6 +113,37 @@ fun ViewerScreen(
             }
         }
     }
+}
+
+/**
+ * Plays a video in the viewer. The source is the original from the download endpoint, streamed
+ * progressively with the session in the query and the token in the header (research). ExoPlayer's
+ * [PlayerView] gives the classic controls: a seek bar and a play/pause button, shown on tap.
+ * Playback follows the pager: only the page on screen plays, and the player is released when the
+ * page leaves.
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+@Composable
+private fun VideoPage(entry: ViewerItem, auth: ThumbnailAuth, isActive: Boolean) {
+    val context = LocalContext.current
+    val player = remember(entry.item.id) { ExoPlayer.Builder(context).build() }
+
+    DisposableEffect(entry.item.id) {
+        val url = DownloadUrls.original(auth.baseUrl, entry.item.space, entry.item.unitId, auth.sid).toString()
+        val headers = buildMap<String, String> { auth.token?.let { put(SynologyClient.SYNO_TOKEN_HEADER, it) } }
+        val dataSource = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
+        val source = ProgressiveMediaSource.Factory(dataSource).createMediaSource(MediaItem.fromUri(url))
+        player.setMediaSource(source)
+        player.prepare()
+        onDispose { player.release() }
+    }
+    // Only the page on screen plays; swiping away pauses without tearing the player down.
+    LaunchedEffect(isActive) { player.playWhenReady = isActive }
+
+    AndroidView(
+        factory = { ctx -> PlayerView(ctx).apply { this.player = player; useController = true } },
+        modifier = Modifier.fillMaxSize(),
+    )
 }
 
 @Composable

@@ -17,6 +17,9 @@ plan.md §2 backed by something that fails when it is broken.
 ### Viewer
 
 - [x] Fullscreen pager across the whole day, all years in one sequence, year and time shown.
+- [x] Video playback in the viewer (added at the owner's request, amends plan.md §9): a video
+      page uses Media3 ExoPlayer with the classic controls (seek bar, play/pause, skip), streamed
+      from the download endpoint with the token header; only the on-screen page plays.
 - [x] Larger thumbnail on open, and pinch-zoom. Zoom shows the large rendition (`xl`); the
       byte-original on zoom awaits the Download endpoint, see the blocked item below.
 - [x] Download the original to the device's pictures collection, with a progress indication.
@@ -81,3 +84,5 @@ not committed.
 - [x] Every rule in plan.md §2 maps to a test or a signed-off item, by name (see the mapping below).
 - [ ] A release APK installs over a debug install without uninstalling.
       > Blocked with the keystore item above: needs the release keystore to exist first.
+      > Scheduled with the owner for 2026-09-03: create the keystore, then assembleRelease and
+      > the install-over-debug check.
