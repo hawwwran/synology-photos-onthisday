@@ -5,7 +5,8 @@ import android.content.res.Configuration
 import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -31,12 +32,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -263,12 +266,35 @@ private fun VideoPage(
     }
 }
 
+private const val MIN_SCALE = 1f     // fit; smaller is allowed only as rubber-band during a pinch
+private const val RUBBER_MIN = 0.7f
+private const val MAX_SCALE = 5f
+
+/**
+ * A photo that pinch-zooms. At fit (scale 1) a single-finger drag is left to the pager, so the
+ * day's photos swipe like the videos do; only when zoomed in does the drag pan the image
+ * (`canPan`). A pinch may shrink below fit for feedback, and snaps back to fit when the fingers
+ * lift, so a photo is never left smaller than fit.
+ */
 @Composable
 private fun ZoomableImage(entry: ViewerItem, auth: ThumbnailAuth) {
     val context = LocalContext.current
-    var scale by remember { mutableStateOf(1f) }
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
+    var scale by remember(entry.item.id) { mutableStateOf(MIN_SCALE) }
+    var offset by remember(entry.item.id) { mutableStateOf(Offset.Zero) }
+
+    val state = rememberTransformableState { zoomChange, panChange, _ ->
+        scale = (scale * zoomChange).coerceIn(RUBBER_MIN, MAX_SCALE)
+        offset = if (scale > 1f) offset + panChange else Offset.Zero
+    }
+    // When the gesture ends below fit, settle back to exactly fit, centred.
+    LaunchedEffect(state) {
+        snapshotFlow { state.isTransformInProgress }.collect { inProgress ->
+            if (!inProgress && scale < MIN_SCALE) {
+                scale = MIN_SCALE
+                offset = Offset.Zero
+            }
+        }
+    }
 
     val ref = ThumbnailRef(entry.item.space, entry.item.unitId, entry.item.cacheKey, ThumbnailSize.LARGE)
     val request = remember(ref, auth) {
@@ -283,18 +309,7 @@ private fun ZoomableImage(entry: ViewerItem, auth: ThumbnailAuth) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTransformGestures { _, pan, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(1f, 5f)
-                    if (scale > 1f) {
-                        offsetX += pan.x
-                        offsetY += pan.y
-                    } else {
-                        offsetX = 0f
-                        offsetY = 0f
-                    }
-                }
-            },
+            .transformable(state = state, canPan = { scale > 1f }),
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(
@@ -303,7 +318,7 @@ private fun ZoomableImage(entry: ViewerItem, auth: ThumbnailAuth) {
             contentScale = ContentScale.Fit,
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offsetX, translationY = offsetY),
+                .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
         )
     }
 }

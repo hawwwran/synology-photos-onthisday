@@ -4,6 +4,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,6 +54,8 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
     val likesFolder by graph.sessionStore.likesFolder().collectAsState(initial = SessionStore.DEFAULT_LIKES_FOLDER)
 
     var nav by remember { mutableStateOf<DayNav>(DayNav.Grid) }
+    // Hoisted here, so the grid keeps its scroll position while the viewer or settings is on top.
+    val gridState = rememberLazyGridState()
     var saving by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
 
@@ -61,6 +64,7 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
             viewModel = viewModel,
             auth = auth,
             likedKeys = likedKeys,
+            gridState = gridState,
             onOpenPhoto = { index -> nav = DayNav.Viewer(index) },
             onOpenSettings = { nav = DayNav.Settings },
             onSignOut = onSignOut,

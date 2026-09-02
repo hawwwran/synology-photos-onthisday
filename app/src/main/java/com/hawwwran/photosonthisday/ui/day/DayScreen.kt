@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,6 +70,7 @@ fun DayScreen(
     viewModel: DayViewModel,
     auth: ThumbnailAuth,
     likedKeys: Set<String>,
+    gridState: LazyGridState,
     onOpenPhoto: (Int) -> Unit,
     onOpenSettings: () -> Unit,
     onSignOut: () -> Unit,
@@ -129,7 +131,7 @@ fun DayScreen(
                             onRefresh = viewModel::refresh,
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            DayGrid(current, sections, auth, likedKeys, onOpenPhoto)
+                            DayGrid(current, sections, auth, likedKeys, gridState, onOpenPhoto)
                         }
                     } else {
                         Text(
@@ -156,6 +158,7 @@ private fun DayGrid(
     sections: List<YearSection>,
     auth: ThumbnailAuth,
     likedKeys: Set<String>,
+    gridState: LazyGridState,
     onOpenPhoto: (Int) -> Unit,
 ) {
     val baseIndex = HashMap<Int, Int>().also { map ->
@@ -163,6 +166,7 @@ private fun DayGrid(
         sections.forEach { map[it.year] = running; running += it.items.size }
     }
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Adaptive(minSize = 108.dp),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
