@@ -82,9 +82,14 @@ this is personal work.
 ## Icon
 
 `app/src/main/res/drawable/ic_launcher_foreground.xml` is one petal path rotated four times
-around (54, 54). Three petals warm, one white for the day being shown. The tip sits 34dp from
-centre so the flower stays inside the adaptive icon's 72dp safe circle; moving it outward gets
-it clipped on round launchers. `ui/theme/Theme.kt` uses the same four colours.
+around (54, 54). Three petals warm, one white for the day being shown.
+
+The petal tapers to a point at the centre and rounds off outward. Pointed the other way it
+reads as a spike rather than a flower, which is what the first attempt looked like. Body radius
+14 centred 20dp out puts the outer edge at 34dp, filling the adaptive icon's 72dp safe circle;
+widening it gets the petals clipped on round launchers, and narrowing it opens a dark cross in
+the middle because adjacent petals stop touching. `ui/theme/Theme.kt` uses the same four
+colours.
 
 ## Documents protocol
 
