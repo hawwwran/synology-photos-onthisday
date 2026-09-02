@@ -7,6 +7,7 @@ import androidx.core.content.FileProvider
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -14,6 +15,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import java.time.LocalDate
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -56,6 +61,24 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
     var nav by remember { mutableStateOf<DayNav>(DayNav.Grid) }
     // Hoisted here, so the grid keeps its scroll position while the viewer or settings is on top.
     val gridState = rememberLazyGridState()
+
+    // Whenever the app comes to the front, roll to today if the calendar date has changed since
+    // it was last in front (e.g. midnight passed while locked). A same-day return does nothing.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        var lastDate = LocalDate.now()
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val now = LocalDate.now()
+                if (now != lastDate) {
+                    viewModel.refreshToday()
+                    lastDate = now
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var saving by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
 
