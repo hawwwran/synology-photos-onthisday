@@ -372,6 +372,30 @@ else
 fi
 note ""
 
+# ---- Download: does an original come back, and under which parameter ----------
+# Plan 005 needs the original file. The endpoint was not seen on the first run, and this
+# project does not guess: this probe records only the status, content type and byte size
+# (the body is discarded to /dev/null, never written and never logged) so the parameter
+# and version can be settled before any download code is written.
+note "Download probe (metadata only, body discarded)"
+if [[ -n "${UNIT_ID:-}" && "$UNIT_ID" != "-" ]]; then
+    v_dl=$(apiver "$THUMB_NS.Download" max 2)
+    dl_probe() {
+        curl -sS -o /dev/null -w '%{http_code} %{content_type} %{size_download}B' \
+            -G "$BASE/webapi/entry.cgi" "$@" \
+            --data-urlencode "api=$THUMB_NS.Download" \
+            --data-urlencode "version=$v_dl" \
+            --data-urlencode "method=download" \
+            --data-urlencode "_sid=$SID" \
+            "${CURL_HEADERS[@]}" 2>&1
+    }
+    note "  $THUMB_NS.Download v$v_dl unit_id=[id] -> $(dl_probe --data-urlencode "unit_id=[$UNIT_ID]")"
+    note "  $THUMB_NS.Download v$v_dl item_id=[id] -> $(dl_probe --data-urlencode "item_id=[$UNIT_ID]")"
+else
+    note "  skipped: no unit id available"
+fi
+note ""
+
 python3 "$SUMMARISE" "$OUT" | tee -a "$SUMMARY"
 note ""
 note "Done. Output in $OUT"

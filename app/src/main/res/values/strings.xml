@@ -18,4 +18,17 @@
     <string name="day_year_count">%1$d photos</string>
     <string name="day_refresh">Refresh</string>
     <string name="sign_out">Sign out</string>
+
+    <string name="viewer_back">Back</string>
+    <string name="viewer_save">Save a copy</string>
+    <string name="viewer_saved">Saved to your photos.</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_nas">NAS</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_refresh">Refresh</string>
+    <string name="settings_refresh_value">Every %1$d hours, and on pull to refresh</string>
+    <string name="settings_cache">Thumbnail cache</string>
+    <string name="settings_cache_measuring">Measuring…</string>
+    <string name="settings_clear_cache">Clear cache</string>
 </resources>

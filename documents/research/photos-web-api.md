@@ -274,8 +274,11 @@ Optional; the script already carries the probes. One login, not retried: whether
 GET accepts the session in a `Cookie: id=` header with the token in `X-SYNO-TOKEN` and nothing
 in the query string, which would keep session ids out of the reverse proxy's access log;
 `SynoToken` as a query parameter; whether `device_id` carries a value without a two-factor
-code; and, for the record, whether `end_time` is inclusive. None of it blocks a plan: the app
-keeps `_sid` in the thumbnail query as observed to work, and the range edge is accepted.
+code; whether `end_time` is inclusive; and the `SYNO.Foto.Download` parameter and version, which
+plan 005's save of the original needs and which this run did not observe. The script now probes
+the download endpoint (metadata only, body discarded). Until then the app keeps `_sid` in the
+thumbnail query as observed to work, the range edge is accepted, and the save writes the largest
+rendition rather than the byte-original.
 
 ## Deliberately not done
 

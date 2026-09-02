@@ -10,6 +10,7 @@ import com.hawwwran.photosonthisday.data.RefreshResult
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
@@ -41,6 +42,11 @@ class DayViewModel(
 
     private val _sections = MutableStateFlow<List<YearSection>>(emptyList())
     val sections: StateFlow<List<YearSection>> = _sections
+
+    /** The day's photos as one display-ordered sequence, so the viewer pages across all years. */
+    val viewerItems: StateFlow<List<ViewerItem>> = _sections
+        .map { list -> list.flatMap { section -> section.items.map { ViewerItem(section.year, it) } } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
