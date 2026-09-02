@@ -8,7 +8,7 @@ dependency column is.
 | [001](001-api-observation.md) | API observation | Done, U6 dropped | nothing | 8 / 9 |
 | [002](002-foundation-and-auth.md) | Foundation and sign-in | Done | 001 | 14 / 14 |
 | [003](003-day-index.md) | Day histogram and day selection | Done | 001 | 12 / 12 |
-| [004](004-day-screen.md) | Day screen, paging, thumbnails | Not started | 002, 003 | 0 / 14 |
+| [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
 | [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Not started | 004 | 0 / 11 |
 
 ```
@@ -16,7 +16,7 @@ dependency column is.
      └─> 003 ─┴─> 004 ──> 005
 ```
 
-001, 002 and 003 are done. 004 (day screen, paging by time range, thumbnails) is next, then 005.
+001-004 are done. 005 (viewer, download, hardening) is next.
 
 Plan 003's pure logic is already written and tested (`core/DayIndex.kt`), which is why it starts
 partly done.
