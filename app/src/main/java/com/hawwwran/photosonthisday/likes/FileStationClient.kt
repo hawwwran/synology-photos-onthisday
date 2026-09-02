@@ -1,6 +1,7 @@
 package com.hawwwran.photosonthisday.likes
 
 import com.hawwwran.photosonthisday.api.Allowlist
+import com.hawwwran.photosonthisday.api.ApiLog
 import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.SessionCredentials
 import com.hawwwran.photosonthisday.api.SynologyClient
@@ -47,18 +48,33 @@ class FileStationClient(
                 .build()
             try {
                 http.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "HTTP ${response.code}")
+                    // This DSM answers a missing file with HTTP 404 rather than a JSON 408; treat both as "not yet".
+                    if (response.code == 404) {
+                        ApiLog.dsmError(Allowlist.FS_DOWNLOAD, FILE_NOT_FOUND)
+                        return@use null
+                    }
+                    if (!response.isSuccessful) {
+                        ApiLog.malformed(Allowlist.FS_DOWNLOAD, "HTTP ${response.code}")
+                        throw ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "HTTP ${response.code}")
+                    }
                     val body = response.body ?: throw ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "empty body")
                     // A real download carries a Content-Disposition; a File Station error is JSON without one.
                     if (response.header("Content-Disposition") != null) {
+                        ApiLog.ok(Allowlist.FS_DOWNLOAD)
                         body.bytes()
                     } else {
                         val code = errorCode(body.string())
-                        if (code == FILE_NOT_FOUND) null
-                        else throw ApiFailure.DsmError(Allowlist.FS_DOWNLOAD, code ?: -1)
+                        if (code == FILE_NOT_FOUND) {
+                            ApiLog.dsmError(Allowlist.FS_DOWNLOAD, FILE_NOT_FOUND) // normal on the first run
+                            null
+                        } else {
+                            ApiLog.dsmError(Allowlist.FS_DOWNLOAD, code ?: -1)
+                            throw ApiFailure.DsmError(Allowlist.FS_DOWNLOAD, code ?: -1)
+                        }
                     }
                 }
             } catch (e: IOException) {
+                ApiLog.transport(Allowlist.FS_DOWNLOAD, e)
                 throw ApiFailure.Transport(Allowlist.FS_DOWNLOAD, e)
             }
         }
@@ -84,11 +100,19 @@ class FileStationClient(
                 .build()
             try {
                 http.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw ApiFailure.Malformed(Allowlist.FS_UPLOAD, "HTTP ${response.code}")
+                    if (!response.isSuccessful) {
+                        ApiLog.malformed(Allowlist.FS_UPLOAD, "HTTP ${response.code}")
+                        throw ApiFailure.Malformed(Allowlist.FS_UPLOAD, "HTTP ${response.code}")
+                    }
                     val code = errorCode(response.body?.string().orEmpty())
-                    if (code != null) throw ApiFailure.DsmError(Allowlist.FS_UPLOAD, code)
+                    if (code != null) {
+                        ApiLog.dsmError(Allowlist.FS_UPLOAD, code)
+                        throw ApiFailure.DsmError(Allowlist.FS_UPLOAD, code)
+                    }
+                    ApiLog.ok(Allowlist.FS_UPLOAD)
                 }
             } catch (e: IOException) {
+                ApiLog.transport(Allowlist.FS_UPLOAD, e)
                 throw ApiFailure.Transport(Allowlist.FS_UPLOAD, e)
             }
         }

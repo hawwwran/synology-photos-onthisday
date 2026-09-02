@@ -1,5 +1,6 @@
 package com.hawwwran.photosonthisday.likes
 
+import android.util.Log
 import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.Space
 import com.hawwwran.photosonthisday.data.db.LikeDao
@@ -48,17 +49,22 @@ class LikeRepository(
 
     /** Reconcile with the NAS: merge local and remote last-writer-wins, store, and upload the result. */
     suspend fun sync(session: Session): SyncResult {
+        val dir = folder()
+        Log.i("PhotosLikes", "sync start, folder=$dir")
         return try {
-            val remote = nas.pull(session.baseUrl, folder(), session.credentials)
+            val remote = nas.pull(session.baseUrl, dir, session.credentials)
             val local = dao.all().map { LikeState(likeKey(Space.valueOf(it.namespace), it.unitId), it.liked, it.updatedAt) }
             val merged = LikesMerge.merge(local, remote).values
             dao.replaceAll(merged.map { it.toEntity() })
-            nas.push(session.baseUrl, folder(), merged, session.credentials)
+            nas.push(session.baseUrl, dir, merged, session.credentials)
+            Log.i("PhotosLikes", "sync ok, ${merged.size} entries")
             SyncResult.Success
         } catch (e: ApiFailure.SessionExpired) {
             onSessionExpired()
+            Log.w("PhotosLikes", "sync: session expired")
             SyncResult.SessionExpired
         } catch (e: ApiFailure) {
+            Log.w("PhotosLikes", "sync failed: ${e.message}")
             SyncResult.Failed(e.message ?: "Synchronizace lajků selhala.")
         }
     }
