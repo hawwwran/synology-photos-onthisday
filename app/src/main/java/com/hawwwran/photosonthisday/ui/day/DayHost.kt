@@ -69,11 +69,9 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 onSave = { entry ->
                     if (!saving) scope.launch {
                         saving = true
-                        val ref = com.hawwwran.photosonthisday.api.ThumbnailRef(
-                            entry.item.space, entry.item.unitId, entry.item.cacheKey,
-                            com.hawwwran.photosonthisday.api.ThumbnailSize.LARGE,
+                        val result = graph.imageSaver.save(
+                            session.baseUrl, entry.item.space, entry.item.unitId, auth.sid, auth.token,
                         )
-                        val result = graph.imageSaver.save(session.baseUrl, ref, auth.sid, auth.token)
                         saving = false
                         val message = when (result) {
                             SaveResult.Success -> context.getString(R.string.viewer_saved)

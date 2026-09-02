@@ -50,6 +50,23 @@ Present but not observed and therefore not allowlisted yet: `SYNO.Foto.Download`
 `SYNO.FotoTeam.Download` (1-2), which plan 005's download of the original will need, and
 `SYNO.Foto.UserInfo` (1). The full 79-line list is `api-versions.txt` in the capture directory.
 
+### Update, second run 2026-09-02
+
+A second owner run settled the remaining unknowns:
+
+- **Download.** `SYNO.Foto.Download` / `SYNO.FotoTeam.Download` `download` v2, GET, with
+  `unit_id=[<id>]` (and `item_id=[<id>]`) returns the original file bytes: 4.06 MB for a photo
+  whose `xl` thumbnail is 338 KB. Verified end to end in the app: Save writes the original to the
+  gallery. The session went in the query with the token header, as the probe used.
+- **Thumbnail session in a cookie.** `Cookie: id=<sid>` with the `X-SYNO-TOKEN` header serves the
+  thumbnail from a clean URL (no `_sid` in the query), so the reverse proxy's access log never
+  sees the session id. The app uses this for thumbnails. The download still carries `_sid` in the
+  query, because the cookie form was only verified for the thumbnail.
+- **`end_time` is inclusive**, both ends: `start_time = end_time = <one item's time>` returns that
+  one item. The day fetch uses `end_time = start + 86399`, so no overlap with the next day.
+- **`device_id` is returned** on login here, so the trusted device is kept and the second factor
+  is asked once per install.
+
 ### The allowlist
 
 Plan.md §2 requires that only these `(api, method, version)` triples can be built. Anything
@@ -67,6 +84,8 @@ else throws before a request exists.
 | `SYNO.Foto.Browse.Item` | `count` | 7 | Cross-check the histogram total |
 | `SYNO.FotoTeam.Browse.Item` | `count` | 7 | Cross-check the histogram total |
 | `SYNO.Foto.Thumbnail` | `get` | 2 | Personal thumbnails, GET |
+| `SYNO.Foto.Download` | `download` | 2 | Save the personal original |
+| `SYNO.FotoTeam.Download` | `download` | 2 | Save the shared original |
 | `SYNO.FotoTeam.Thumbnail` | `get` | 2 | Shared thumbnails, GET |
 
 Every method above is a read. No album, sharing, folder, upload, setting or download method was
