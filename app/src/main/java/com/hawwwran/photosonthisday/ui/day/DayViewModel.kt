@@ -99,6 +99,10 @@ class DayViewModel(
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
 
+    /** Grid multi-selection, keyed like likes. Empty means not in selection mode. */
+    private val _selected = MutableStateFlow<Set<String>>(emptySet())
+    val selected: StateFlow<Set<String>> = _selected
+
     init {
         viewModelScope.launch { repository.refreshIfStale(session) }
         viewModelScope.launch { likes.sync(session) } // pull the NAS likes so they show, push any pending
@@ -143,6 +147,36 @@ class DayViewModel(
         viewModelScope.launch {
             likes.toggle(item.space, item.unitId)
             likes.sync(session)
+        }
+    }
+
+    // ---- multi-selection ----
+
+    fun startSelect(item: com.hawwwran.photosonthisday.api.PhotoItem) {
+        _selected.update { it + likeKey(item.space, item.unitId) }
+    }
+
+    fun toggleSelect(item: com.hawwwran.photosonthisday.api.PhotoItem) {
+        val key = likeKey(item.space, item.unitId)
+        _selected.update { if (key in it) it - key else it + key }
+    }
+
+    fun clearSelection() {
+        _selected.value = emptySet()
+    }
+
+    /** The selected items, resolved from the shown day, in display order. */
+    fun selectedItems(): List<com.hawwwran.photosonthisday.api.PhotoItem> {
+        val keys = _selected.value
+        return _sections.value.flatMap { it.items }.filter { likeKey(it.space, it.unitId) in keys }
+    }
+
+    /** Like every selected item, then reconcile, then leave selection mode. */
+    fun likeSelected() {
+        viewModelScope.launch {
+            selectedItems().forEach { likes.setLiked(it.space, it.unitId, true) }
+            likes.sync(session)
+            clearSelection()
         }
     }
 

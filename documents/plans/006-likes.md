@@ -198,6 +198,15 @@ Writing must be as disciplined as reading is:
 - [x] Photos that are not liked are never modified on the NAS in any way (only `likes.json` is
       written; Photos endpoints stay read-only).
 
+## Batch actions (added 2026-09-03, owner request)
+
+Long-press a grid tile to enter selection mode; tapping tiles then toggles them. A contextual top
+bar shows the count, an X to cancel, and heart, share and download. Heart likes all selected (and
+syncs); download saves each original to the gallery; share hands the originals to the Android
+share sheet as a multi-file `ACTION_SEND_MULTIPLE`. Verified on device: selection, batch like
+(synced to `likes.json`), and the contextual bar. Batch download and share reuse the single-item
+save and share paths.
+
 ## What is built (2026-09-02)
 
 - Write allowlist split from the read allowlist; only `SYNO.FileStation.Upload` v2 is a write,
