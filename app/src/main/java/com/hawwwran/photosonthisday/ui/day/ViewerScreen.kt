@@ -66,6 +66,8 @@ import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.ThumbnailRef
 import com.hawwwran.photosonthisday.api.ThumbnailSize
 import com.hawwwran.photosonthisday.api.ThumbnailUrls
+import com.hawwwran.photosonthisday.core.MonthDay
+import com.hawwwran.photosonthisday.core.czech
 import com.hawwwran.photosonthisday.likes.likeKey
 import java.time.Instant
 import java.time.ZoneOffset
@@ -134,7 +136,7 @@ fun ViewerScreen(
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.viewer_back), tint = Color.White)
                 }
                 Text(
-                    text = "${current.year} · ${takenTime(current.item.takenTimeSeconds)}",
+                    text = fullDate(current.item.takenTimeSeconds),
                     color = Color.White,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
@@ -325,6 +327,13 @@ private fun ZoomableImage(entry: ViewerItem, auth: ThumbnailAuth) {
 
 private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
 
-/** `time` is the wall clock stored as if UTC (research U7), so read it back as UTC unchanged. */
-private fun takenTime(seconds: Long): String =
-    Instant.ofEpochSecond(seconds).atZone(ZoneOffset.UTC).format(TIME_FORMAT)
+/**
+ * The full taken date and time, Czech, e.g. "2. září 2026 · 18:42". `time` is the wall clock
+ * stored as if UTC (research U7), so it is read back as UTC unchanged. The date is shown, not
+ * just the year, so a person paging across years does not lose track of the day.
+ */
+private fun fullDate(seconds: Long): String {
+    val at = Instant.ofEpochSecond(seconds).atZone(ZoneOffset.UTC)
+    val monthDay = MonthDay(at.monthValue, at.dayOfMonth)
+    return "${monthDay.czech()} ${at.year} · ${at.format(TIME_FORMAT)}"
+}
