@@ -18,8 +18,13 @@ plan.md §2 backed by something that fails when it is broken.
 
 - [x] Fullscreen pager across the whole day, all years in one sequence, year and time shown.
 - [x] Video playback in the viewer (added at the owner's request, amends plan.md §9): a video
-      page uses Media3 ExoPlayer with the classic controls (seek bar, play/pause, skip), streamed
-      from the download endpoint with the token header; only the on-screen page plays.
+      page uses Media3 ExoPlayer with the classic controls (seek bar, play/pause, 15 s skip),
+      streamed from the download endpoint with the token header; only the on-screen page plays.
+      Controls start hidden and never cover the video unasked: a tap shows them (auto-hiding while
+      playing), a double-tap on the right half skips 15 s forward and on the left half 15 s back.
+      In landscape the app goes immersive on a video, hiding the top bar and the system bars with
+      the controls until the video is tapped. MainActivity handles rotation without recreation so
+      the player keeps its position. Verified on device with a 2-minute clip.
 - [x] Larger thumbnail on open, and pinch-zoom. Zoom shows the large rendition (`xl`); the
       byte-original on zoom awaits the Download endpoint, see the blocked item below.
 - [x] Download the original to the device's pictures collection, with a progress indication.
