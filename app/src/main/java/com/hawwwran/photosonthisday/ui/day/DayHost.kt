@@ -50,7 +50,6 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
         factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, graph.likes, session, currentMonthDay()) } },
     )
     val auth = ThumbnailAuth(session.baseUrl, session.credentials.sid, session.credentials.synotoken)
-    val viewerItems by viewModel.viewerItems.collectAsState()
     val likedKeys by viewModel.likedKeys.collectAsState()
     val likesFolder by graph.sessionStore.likesFolder().collectAsState(initial = SessionStore.DEFAULT_LIKES_FOLDER)
 
@@ -113,8 +112,11 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
 
         is DayNav.Viewer -> {
             BackHandler { nav = DayNav.Grid }
+            // A stable snapshot: liking or unliking in the viewer must not reshuffle the pager
+            // (the grid re-sorts liked-first on return, but the open viewer keeps its order).
+            val items = remember(current) { viewModel.viewerSnapshot() }
             ViewerScreen(
-                items = viewerItems,
+                items = items,
                 startIndex = current.index,
                 auth = auth,
                 likedKeys = likedKeys,
