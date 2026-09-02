@@ -69,8 +69,8 @@ HTTPS to a Synology DDNS hostname carrying a Let's Encrypt certificate issued th
   proxy. Consequences: prerequisites 1 to 3 above are replaced by "a vhost on the existing
   proxy", DSM's own port need not be exposed at all, and the app is unchanged. New open
   question: DSM auto-block keys on the client address and sees only the proxy's, so a few
-  failed logins from anyone would ban the proxy for the whole household. Allowlisting the proxy
-  in DSM and rate-limiting the login call in nginx is the likely answer; not yet done.
+  failed logins from anyone would ban the proxy for the whole household. Accepted as is by the
+  owner the same day (Q4 in the index): the household is small and a ban lifts by itself.
 
 ## Related
 

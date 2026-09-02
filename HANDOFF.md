@@ -1,10 +1,9 @@
-# Handoff - 2026-09-02
+# Handoff - 2026-09-02, end of day
 
-Written before a machine restart. Read this, then `CLAUDE.md`, then
-`documents/decisions/index.md` and `documents/plans/index.md`.
+Read this, then `CLAUDE.md`, then `documents/decisions/index.md` and `documents/plans/index.md`.
 
-Nothing is in flight. No process was left running, no file half-written, no NAS state touched.
-The repo builds and its tests pass as committed.
+Nothing is in flight. No process was left running, no file half-written, no NAS state touched
+beyond read calls and a logout. The repo builds and its tests pass as committed.
 
 ## What this project is
 
@@ -12,99 +11,86 @@ The repo builds and its tests pass as committed.
 the signed-in person took on today's calendar date in every year their Synology Photos library
 covers, and when today holds nothing it shows the nearest day that does.
 
-It was designed in a session that started from `~/git/synology-photos-companion` and concluded
-that companion's access model (direct PostgreSQL over a Unix socket on the NAS) cannot serve a
-phone and carries no notion of a signed-in viewer. This app talks to the Photos **web API**
-instead, with each person's own Synology session, so Synology enforces per-account access and
-the app implements no permission logic. That is
-[decision 001](documents/decisions/001-web-api-is-the-only-source.md).
+It talks to the Photos **web API** with each person's own Synology session, so Synology enforces
+per-account access and the app implements no permission logic. That is
+[decision 001](documents/decisions/001-web-api-is-the-only-source.md). The sibling repo
+`~/git/synology-photos-companion` reads the Photos database directly; no code moves between them.
 
 ## What exists
 
-Buildable skeleton, complete documents, one unrun script.
-
 | Area | State |
 | --- | --- |
-| Gradle build | Works. `./gradlew testDebugUnitTest assembleDebug` is green, 6 tests pass, APK 20 MB |
+| Gradle build | Works. `./gradlew testDebugUnitTest assembleDebug` is green, 6 tests pass |
 | App shell | `OnThisDayApp`, `MainActivity` with a placeholder screen, Compose theme from the icon palette |
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
-| Day-selection logic | **Written and tested.** `core/DayIndex.kt` plus `DayIndexTest.kt` |
-| Product spec | `documents/plans/plan.md`, 12 sections |
-| Plans | 001-005 in `documents/plans/`, index with the dependency graph |
-| Decisions | 001-007 in `documents/decisions/`, index with three open questions |
-| Observation script | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`. Run end to end against a local TLS mock of `entry.cgi`; three defects that would have wasted the real run are fixed in `a7e45a5`. **Never run against the NAS** |
+| Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
+| Product spec | `documents/plans/plan.md`. §11 now carries the answers |
+| Plans | 001-005. 001 is 8/9, blocked only on U6 |
+| Decisions | 001-007. 004 amended twice today; Q4 accepted; Q3 answered yes |
+| **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
+| Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
 
-`core/DayIndex.kt` is the heart of the product and it is pure: exact match across years, else
-the nearest calendar day, wrapping at the year boundary, ties to the past, 29 February as a day
-of its own. It needed no NAS to write and needs none to change.
+The raw capture is in `documents/research/observation-2026-09-02-135141/`, gitignored, on this
+machine only. The summariser can be rerun on it at any time.
+
+## What the run found, in one paragraph
+
+Photos 1.9.1-10928 on DSM 7.3.2. The timeline (`Browse.Timeline` `get` v6) returns the whole
+library's day histogram as pages of about a hundred items, each listing its days; a day bigger
+than a page repeats across pages with its full count, so days are deduplicated when flattened,
+after which the histogram sums exactly to the item count in both namespaces (25,149 personal,
+77,436 shared; 1,936 and 3,330 distinct days). The offset arithmetic from decision 005 was
+checked live and holds. The item list **does** accept `start_time`/`end_time` in epoch seconds,
+and silently ignores `time_start`/`time_end`. Thumbnails come from a GET, but only with the
+`X-SYNO-TOKEN` header; without it the same URL returns a JSON error with HTTP 200. `time` is
+seconds, `indexed_time` milliseconds. Timeline days are the UTC calendar date of `time`. The
+login's trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-**Plan 001, the API observation pass.** Everything else is blocked on it, and nothing in it may
-be guessed: these Photos endpoints are undocumented and version-sensitive.
+1. **Two more runs of the script**, both by the owner at the keyboard, one login attempt each:
+   as the owner again, so the added probes settle the time-range semantics and whether the
+   session can travel in a cookie; and as `test-user` for U6. Then the summariser output goes
+   into the research file, U6 gets ticked, and plan 001 closes.
+2. **Decision 005 amendment.** If the range is inclusive and cuts days as the histogram does,
+   fetching a day becomes `start_time`/`end_time` and the overlap read goes away. The owner
+   decides; the recommendation is written in the research file.
+3. **Plans 002 and 003** are unblocked now and can run in either order.
 
 ```bash
 cd ~/git/synology-photos-onthisday
-./scripts/observe-photos-api.sh                    # asks for base URL, account, password, 2FA code
-# or: ./scripts/observe-photos-api.sh https://host:5001
+./scripts/observe-photos-api.sh https://nas.example.com      # asks account, password, 2FA code
+./scripts/summarise-observation.py documents/research/observation-<stamp>/
 ```
 
-It calls read endpoints only, logs out on exit, redacts every response before writing, and
-writes to a gitignored `documents/research/observation-<timestamp>/`. One login attempt, never
-retried, because DSM auto-block would ban the machine. It ends by running
-`scripts/summarise-observation.py` on the directory, which prints the U1-U7 answers and the
-decision 005 offset check; that summariser can be rerun on the kept directory at any time.
+## How the NAS is reached
 
-Two things gate the run:
-
-- **A certificate curl trusts.** The base URL must be the DDNS hostname carrying the Let's
-  Encrypt certificate from decision 004. DSM's self-signed certificate on the LAN address fails
-  verification before the login is attempted, and the script has no insecure switch on purpose.
-- **U6 needs a second run** as the restricted account (`test-user`, which owns nothing).
-  Compare `item-count-FotoTeam.json` between the two directories: equal counts mean the shared
-  space ignores folder permissions.
-
-Then the findings get written into `documents/research/photos-web-api.md` (committed) and
-`plan.md` §11 gets amended with the answers. The seven unknowns are U1 to U7 in that section:
-which apis and versions exist, whether a timeline endpoint exists and its shape, whether the
-item list takes a time range, the thumbnail endpoint's parameters and whether a plain GET
-serves bytes, whether taken time is seconds or milliseconds, whether `SYNO.FotoTeam.*` filters
-by folder permission, and which timezone the timeline's day fields use.
-
-After that, plans 002 (sign-in) and 003 (histogram and storage) can run in either order.
-
-## What needs you rather than me
-
-1. **NAS prerequisites for off-LAN use**, once, by hand in DSM: a DDNS hostname, a Let's
-   Encrypt certificate for it, and a reverse proxy or forwarded port. Until then the app can be
-   developed against a LAN address, which is why the base URL is configuration.
-   ([decision 004](documents/decisions/004-access-path-and-tls.md))
-2. **Running the observation script.** It needs your Synology password typed in, so it is not
-   something I run for you.
-3. **A release keystore**, when a release build is first wanted. `CLAUDE.md` has the alias and
-   the property names, and the warning about backing it up.
+Not in the repo on purpose, in case it goes public. The base URL is in the memory directory of
+the Claude session (`nas-access-path`), and the owner knows it. In shape: a hostname on the
+owner's domain, TLS terminated by an nginx in an LXC container on the router with automatic
+Let's Encrypt renewal, reverse-proxying to DSM on the LAN. Decision 004 records the topology
+without the names.
 
 ## Decisions already made, so they are not reopened
 
 - Photos web API is the only source. No backend, nothing deployed to the NAS.
 - Personal **and** shared space, merged. Running totals stay per namespace.
-- Session id stored, password never. Expiry re-prompts. Two-factor device id kept.
-- HTTPS to DDNS with a real certificate. No pinning, no cleartext, no TLS code.
-- The day histogram lives in Room and answers day questions offline. A day's photos are fetched
-  by an offset computed from running totals, so no undocumented time filter is required.
+- Session id stored, password never. Expiry re-prompts. Trusted-device id kept.
+- HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no
+  TLS code. The auto-block-sees-the-proxy exposure is accepted (Q4).
+- The day histogram lives in Room and answers day questions offline.
 - One account per install. An account change wipes the index and every cache first.
-- Photos' own calendar-day boundaries are authoritative, so the app does no timezone
-  arithmetic on photo timestamps.
+- Photos' own calendar-day boundaries are authoritative: the UTC date of `time`.
 
-## Two things worth not forgetting
-
-**The offset trick is the load-bearing idea.** The timeline histogram is in the same taken-time
-order as the item list, so the running total before a day is that day's `offset`. It means the
-app never needs a time-range parameter that may not exist. The cost is that an upload shifts
-every total after it, so a stale index yields a wrong offset rather than a missing photo, which
-is why plan 004 reads one item either side of the window and verifies.
+## Three things worth not forgetting
 
 **Sharing responses are live credentials.** An album response carries the share passphrase and
-a working `sharing_link`. That is why no response body is ever logged and why observation
-output is gitignored. The original finding is in companion's
-`documents/research/api-observation.md`.
+a working `sharing_link`. No response body is ever logged and observation output is gitignored.
+No album call has been made from this repo and none is needed.
+
+**The token is mandatory, including for images.** Coil's fetcher attaches `X-SYNO-TOKEN`, and
+treats a non-image content type as a failure, or an error document gets cached as a picture.
+
+**The summariser is the one that knows the timeline shape.** `buckets_of()` flattens the
+sections and deduplicates repeated days; anything that reads a timeline capture should go
+through it rather than reinvent the walk.

@@ -165,7 +165,8 @@ unset PASSWORD PASSWORD_ENC LOGIN_BODY
 
 # Over stdin, not interpolated into the Python source: a body carrying a quote
 # sequence would otherwise break the parse. One field per line so an absent
-# synotoken cannot shift `did` into its place.
+# synotoken cannot shift the device id into its place. DSM 7 names the trusted
+# device `device_id`; older write-ups say `did`, so both are read.
 { read -r SID; read -r SYNOTOKEN; read -r DID; } <<<"$(printf '%s' "$LOGIN_RAW" | python3 -c '
 import json, sys
 try:
@@ -173,8 +174,9 @@ try:
 except Exception:
     d = {}
 data = d.get("data", {}) if d.get("success") else {}
-for k in ("sid", "synotoken", "did"):
-    print(data.get(k, "") or "-")
+print(data.get("sid", "") or "-")
+print(data.get("synotoken", "") or "-")
+print(data.get("did", "") or data.get("device_id", "") or "-")
 ')" || true
 [[ "${SID:-}" == "-" ]] && SID=""
 [[ "${SYNOTOKEN:-}" == "-" ]] && SYNOTOKEN=""
@@ -277,6 +279,40 @@ for ns in SYNO.Foto SYNO.FotoTeam; do
 done
 note ""
 
+# ---- U3 again: what the time range actually means -------------------------------
+# The first run showed start_time/end_time is honoured. Two calls settle the semantics
+# decision 005 needs before the range can replace the offset arithmetic: a whole UTC
+# day against the histogram's count, and a range of one exact time, which returns one
+# item only if both ends are inclusive.
+note "U3 time range semantics"
+for ns in SYNO.Foto SYNO.FotoTeam; do
+    short="${ns##*.}"
+    v=$V_ITEM; [[ "$short" == FotoTeam ]] && v=$V_ITEM_TEAM
+    [[ -f "$OUT/offset-target-$short.txt" ]] || { note "  $short: skipped, no target day"; continue; }
+    read -r off cnt y m d < "$OUT/offset-target-$short.txt"
+    day_start=$(python3 -c 'import sys, datetime as dt
+print(int(dt.datetime(int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), tzinfo=dt.timezone.utc).timestamp()))' "$y" "$m" "$d")
+    printf '%s\n' "$day_start" > "$OUT/range-day-$short.txt"
+    api_call "item-range-day-$short" \
+        "api=$ns.Browse.Item&version=$v&method=list&offset=0&limit=$(( cnt + 5 ))&$SORT&start_time=$day_start&end_time=$(( day_start + 86399 ))&$AUTH"
+    point=$(python3 - "$OUT/item-offset-$short.json" "$day_start" <<'PY'
+import json, sys
+items = json.load(open(sys.argv[1])).get("data", {}).get("list", [])
+s = int(sys.argv[2])
+for it in items:
+    t = it.get("time")
+    if isinstance(t, int) and s <= t < s + 86400:
+        print(t); break
+PY
+)
+    if [[ -n "$point" ]]; then
+        printf '%s\n' "$point" > "$OUT/range-point-$short.txt"
+        api_call "item-range-point-$short" \
+            "api=$ns.Browse.Item&version=$v&method=list&offset=0&limit=5&$SORT&start_time=$point&end_time=$point&$AUTH"
+    fi
+done
+note ""
+
 # ---- U4: does the thumbnail serve bytes over a plain GET ---------------------
 # Coil needs a GET URL. Only the status line and content type are recorded: the
 # body is somebody's photograph. Tried with and without the X-SYNO-TOKEN header,
@@ -303,8 +339,14 @@ PY
 if [[ -n "${CACHE_KEY:-}" && "$CACHE_KEY" != "-" ]]; then
     v=$V_THUMB; [[ "$THUMB_NS" == SYNO.FotoTeam ]] && v=$V_THUMB_TEAM
     note "  using a $THUMB_NS item, Thumbnail v$v"
+    # thumb_get <size> <yes|no: _sid in the query string> [extra curl args]
+    # The first run showed the token header is required. The variants below decide
+    # whether the session can travel in a cookie instead, so that thumbnail URLs, which
+    # the reverse proxy writes to its access log, carry nothing secret.
     thumb_get() {
-        local size="$1"; shift
+        local size="$1" sid_in_query="$2"; shift 2
+        local sidarg=()
+        [[ "$sid_in_query" == yes ]] && sidarg=(--data-urlencode "_sid=$SID")
         curl -sS -o /dev/null -w '%{http_code} %{content_type} %{size_download}B' \
             -G "$BASE/webapi/entry.cgi" "$@" \
             --data-urlencode "api=$THUMB_NS.Thumbnail" \
@@ -314,14 +356,17 @@ if [[ -n "${CACHE_KEY:-}" && "$CACHE_KEY" != "-" ]]; then
             --data-urlencode "cache_key=$CACHE_KEY" \
             --data-urlencode "type=unit" \
             --data-urlencode "size=$size" \
-            --data-urlencode "_sid=$SID" 2>&1
+            "${sidarg[@]}" 2>&1
     }
-    for size in sm m xl; do
-        note "  GET size=$size, sid only          -> $(thumb_get "$size")"
-        if [[ -n "${SYNOTOKEN:-}" ]]; then
-            note "  GET size=$size, sid + X-SYNO-TOKEN -> $(thumb_get "$size" -H "X-SYNO-TOKEN: $SYNOTOKEN")"
-        fi
-    done
+    note "  GET sm  _sid in query, no token                -> $(thumb_get sm yes)"
+    if [[ -n "${SYNOTOKEN:-}" ]]; then
+        for size in sm m xl; do
+            note "  GET $size  _sid in query + X-SYNO-TOKEN header   -> $(thumb_get "$size" yes -H "X-SYNO-TOKEN: $SYNOTOKEN")"
+        done
+        note "  GET sm  _sid + SynoToken both in query         -> $(thumb_get sm yes --data-urlencode "SynoToken=$SYNOTOKEN")"
+        note "  GET sm  Cookie id= + X-SYNO-TOKEN, clean URL   -> $(thumb_get sm no -H "Cookie: id=$SID" -H "X-SYNO-TOKEN: $SYNOTOKEN")"
+        note "  GET sm  Cookie id= only, clean URL             -> $(thumb_get sm no -H "Cookie: id=$SID")"
+    fi
 else
     note "  skipped: no cache_key in the item list, so U4 needs a manual look"
 fi
