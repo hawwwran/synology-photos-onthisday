@@ -32,7 +32,7 @@ Buildable skeleton, complete documents, one unrun script.
 | Product spec | `documents/plans/plan.md`, 12 sections |
 | Plans | 001-005 in `documents/plans/`, index with the dependency graph |
 | Decisions | 001-007 in `documents/decisions/`, index with three open questions |
-| Observation script | `scripts/observe-photos-api.sh`. Syntax-checked, redactor tested, **never run against the NAS** |
+| Observation script | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`. Run end to end against a local TLS mock of `entry.cgi`; three defects that would have wasted the real run are fixed in `a7e45a5`. **Never run against the NAS** |
 
 `core/DayIndex.kt` is the heart of the product and it is pure: exact match across years, else
 the nearest calendar day, wrapping at the year boundary, ties to the past, 29 February as a day
@@ -51,7 +51,18 @@ cd ~/git/synology-photos-onthisday
 
 It calls read endpoints only, logs out on exit, redacts every response before writing, and
 writes to a gitignored `documents/research/observation-<timestamp>/`. One login attempt, never
-retried, because DSM auto-block would ban the machine.
+retried, because DSM auto-block would ban the machine. It ends by running
+`scripts/summarise-observation.py` on the directory, which prints the U1-U7 answers and the
+decision 005 offset check; that summariser can be rerun on the kept directory at any time.
+
+Two things gate the run:
+
+- **A certificate curl trusts.** The base URL must be the DDNS hostname carrying the Let's
+  Encrypt certificate from decision 004. DSM's self-signed certificate on the LAN address fails
+  verification before the login is attempted, and the script has no insecure switch on purpose.
+- **U6 needs a second run** as the restricted account (`test-user`, which owns nothing).
+  Compare `item-count-FotoTeam.json` between the two directories: equal counts mean the shared
+  space ignores folder permissions.
 
 Then the findings get written into `documents/research/photos-web-api.md` (committed) and
 `plan.md` §11 gets amended with the answers. The seven unknowns are U1 to U7 in that section:
