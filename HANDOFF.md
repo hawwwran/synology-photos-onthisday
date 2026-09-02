@@ -51,21 +51,21 @@ trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-Two things need the phone reconnected tomorrow (2026-09-03):
+Likes (plan 006) are verified on device: like/unlike round-trips through `likes.json` on the NAS
+(File Station Download and Upload both ok), liked items show first, and multi-select batch like,
+download and share work. The likes folder defaults to `/home/OnThisDay`, editable in Settings.
 
-1. **Live-test likes (plan 006, decision 008).** Reconnect the phone, sign in, like a photo. Verify
-   `likes.json` is written to the NAS folder (default `/home/OnThisDay`), the liked item floats to
-   the top of its year, and the heart persists after a refresh. If the write fails because
-   `/home` is not writable for the account, change the folder in Settings to a share the account
-   can write, and retry. The first live write is the only thing not yet proven: the File Station
-   endpoints are from Synology's docs and `SYNO.API.Info` versions, not from a live run.
-2. **Create the release keystore** (`keystore.jks` at the repo root + the `OTD_*` gradle
+One thing remains, and it needs the keystore:
+
+1. **Create the release keystore** (`keystore.jks` at the repo root + the `OTD_*` gradle
    properties in `~/.gradle/gradle.properties`, see `CLAUDE.md`), then `./gradlew assembleRelease`
    and confirm a release APK installs over a debug install. This is plan 005's last box.
 
-Everything else is done and verified on device: sign-in, the day grid, browsing days (prev/next
-and the date picker), the fullscreen viewer with video playback and share, saving the original to
-the gallery, settings, Czech localization, and the §2 hardening tests.
+Everything else is done and verified on device: sign-in; the day grid with browsing (prev/next,
+date picker) and multi-select; the viewer with photo/video swipe, pinch-to-fit, video playback,
+share and save; likes on the NAS; settings; Czech localization; and the safety hardening tests.
+Not yet exercised on device: likes appearing on a second device, and the reinstall/account-change
+restore (the mechanism is the shared NAS file).
 
 ```bash
 cd ~/git/synology-photos-onthisday
