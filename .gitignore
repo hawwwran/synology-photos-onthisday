@@ -1,0 +1,14 @@
+.gradle/
+build/
+local.properties
+*.jks
+.idea/
+*.iml
+.kotlin/
+captures/
+.DS_Store
+
+# API observation output. Login responses carry a live sid and synotoken, and
+# album responses carry share passphrases and working sharing links, so no
+# capture from a real NAS is ever committed. See documents/research/README.md.
+documents/research/observation-*/

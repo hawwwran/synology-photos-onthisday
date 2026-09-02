@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- The up petal is white: one day picked out of the years around it. -->
+    <group android:pivotX="54" android:pivotY="54" android:rotation="0">
+        <path
+            android:pathData="M54,20 L64.36,30.13 A14.8,14.8 0 1 1 43.64,30.13 Z"
+            android:fillColor="@color/petal_today" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="90">
+        <path
+            android:pathData="M54,20 L64.36,30.13 A14.8,14.8 0 1 1 43.64,30.13 Z"
+            android:fillColor="@color/petal_amber" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="180">
+        <path
+            android:pathData="M54,20 L64.36,30.13 A14.8,14.8 0 1 1 43.64,30.13 Z"
+            android:fillColor="@color/petal_orange" />
+    </group>
+    <group android:pivotX="54" android:pivotY="54" android:rotation="270">
+        <path
+            android:pathData="M54,20 L64.36,30.13 A14.8,14.8 0 1 1 43.64,30.13 Z"
+            android:fillColor="@color/petal_rose" />
+    </group>
+</vector>
