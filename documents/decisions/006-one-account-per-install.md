@@ -35,6 +35,12 @@ The trusted-device id may survive, since it belongs to the device rather than to
 - Reversible. Adding a switcher later means adding an account column and keying the caches,
   which is work but not a redesign.
 
+## Amendments
+
+- 2026-09-02: there are no running totals since [[005-day-index-on-device]]'s amendment of the
+  same day. The wipe list is the day histogram, the item rows, the thumbnail cache and the
+  session; nothing else is stored.
+
 ## Related
 
 [[003-authentication-and-sessions]], [[005-day-index-on-device]]
