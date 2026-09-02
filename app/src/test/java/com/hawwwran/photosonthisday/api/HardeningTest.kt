@@ -1,46 +1,57 @@
 package com.hawwwran.photosonthisday.api
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Plan.md §2, turned into checks that fail when a safety rule is broken. */
+/** Plan.md §2 and decision 008, turned into checks that fail when a safety rule is broken. */
 class HardeningTest {
 
-    /** "Synology Photos is read-only." Every allowlisted method is a read verb. */
+    private val writeWords = listOf(
+        "add", "create", "set", "update", "delete", "remove", "rename", "move",
+        "upload", "share", "edit", "copy", "apply", "save", "modify", "import",
+    )
+
+    /** "Synology Photos is read-only." Every read is a read verb; the read set is all reads. */
     @Test
-    fun `the allowlist holds only read methods`() {
+    fun `the read allowlist holds only read methods`() {
         val readMethods = setOf("query", "login", "logout", "get", "list", "count", "download")
-        for (call in Allowlist.all) {
+        for (call in Allowlist.reads) {
             assertTrue("${call.name} is not a known read method", call.method in readMethods)
         }
     }
 
-    /** No allowlisted method name implies a mutation, whatever HTTP verb it uses. */
+    /** No read names a mutation, whatever HTTP verb it uses; no read touches a non-Photos write api. */
     @Test
-    fun `no allowlisted method name implies a write`() {
-        val writeWords = listOf(
-            "add", "create", "set", "update", "delete", "remove", "rename", "move",
-            "upload", "share", "edit", "copy", "apply", "save", "modify", "import",
-        )
-        for (call in Allowlist.all) {
-            val lower = call.method.lowercase()
+    fun `no read allowlist entry implies a write`() {
+        for (call in Allowlist.reads) {
+            val method = call.method.lowercase()
             for (word in writeWords) {
-                assertFalse("${call.name} looks like a write ($word)", lower.contains(word))
+                assertFalse("${call.name} looks like a write ($word)", method.contains(word))
             }
-            // login/logout are auth, not photo mutations; guard the rest against the api name too.
-            if (call.api.startsWith("SYNO.Foto") || call.api.startsWith("SYNO.FotoTeam")) {
-                for (word in writeWords) {
-                    assertFalse("${call.api} looks like a write ($word)", call.api.lowercase().contains(word))
-                }
+        }
+    }
+
+    /**
+     * Decision 008: the only write is saving the app's own likes file over File Station. It is not
+     * a Photos endpoint, and it is not destructive (no delete, rename, move or copy).
+     */
+    @Test
+    fun `the write allowlist is only the likes-file upload`() {
+        assertEquals(setOf(Allowlist.FS_UPLOAD), Allowlist.writes)
+        for (call in Allowlist.writes) {
+            assertTrue("a write must be File Station, not Photos", call.api.startsWith("SYNO.FileStation."))
+            assertFalse("a write into Photos is forbidden", call.api.startsWith("SYNO.Foto"))
+            for (destructive in listOf("delete", "remove", "rename", "move", "copy")) {
+                assertFalse("${call.name} is destructive", call.method.lowercase().contains(destructive))
             }
         }
     }
 
     /**
      * "Never log a response body." The failures a caller can log carry only the call name and a
-     * code, never response content. This asserts the message contract those log lines are built
-     * from; [ApiLog] is the only logger and takes the same safe inputs.
+     * code, never response content. [ApiLog] is the only logger and takes the same safe inputs.
      */
     @Test
     fun `failure messages carry only the call and a code`() {

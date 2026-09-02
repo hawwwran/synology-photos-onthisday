@@ -1,13 +1,14 @@
 # 006 - Liking photos, stored on the NAS
 
-- **Status:** Draft, for review. No code, no decision ratified yet.
+- **Status:** Implemented against the File Station route (decision 008 ratified). On-device
+  validation against the NAS pending 2026-09-03 (the phone left with the owner).
 - **Source:** owner request, 2026-09-02.
-- **Depends on:** 005, and a new decision (008 below) that must be ratified first.
+- **Depends on:** 005, and [decision 008](../decisions/008-writing-likes-to-the-nas.md) (ratified).
 - **Blocks:** nothing.
 - **Decisions it touches:** [001](../decisions/001-web-api-is-the-only-source.md) and plan.md §2
   (both say Synology Photos is read-only), [002](../decisions/002-personal-and-shared-space.md)
   (two namespaces), [006](../decisions/006-one-account-per-install.md) (account-change wipe).
-- **Progress:** 0 / (set when the approach is chosen)
+- **Progress:** code complete; acceptance criteria await the live test
 
 ## Goal
 
@@ -130,9 +131,8 @@ Writing must be as disciplined as reading is:
 
 ### 0. Decide
 
-- [ ] Write **decision 008**: whether likes may be written to the NAS, and by which route (A, B or
-      C), amending or carving out plan.md §2 and [[001]] accordingly. Owner ratifies before any
-      code.
+- [x] Wrote **decision 008**: likes are written to the NAS as one app-owned File Station file
+      (Option C). Synology Photos stays strictly read-only. Owner ratified 2026-09-02.
 
 ### 1. Observe the write path (a plan-001-style pass, write-safe)
 
@@ -149,38 +149,45 @@ Writing must be as disciplined as reading is:
 - [ ] Write the findings into `documents/research/photos-web-api.md`; confirm the test item was
       reverted and no capture is committed.
 
+> The File Station route needs no Photos-endpoint observation. Its versions were read from
+> `SYNO.API.Info` (Upload v2-3, Download v1-2); the Upload/Download parameter shapes are from
+> Synology's documented File Station API. The one live check is tomorrow's test: that the account
+> can write `likes.json` to the configured folder.
+
 ### 2. Write layer
 
-- [ ] A write allowlist and a small write client, with the same envelope decoding, typed failures
+- [x] A write allowlist and a small write client, with the same envelope decoding, typed failures
       and body-free logging as the read client.
-- [ ] Idempotent like and unlike against the chosen store.
+- [x] Idempotent like and unlike against the chosen store.
 
 ### 3. Local model
 
-- [ ] Room `like` table and a repository exposing the like state per item as a flow.
-- [ ] Optimistic toggle and a pending-sync marker.
-- [ ] Clear-on-account-change (local only), exercised by a test.
+- [x] Room `like` table and a repository exposing the like state per item as a flow.
+- [x] Optimistic toggle and a pending-sync marker.
+- [x] Clear-on-account-change (local only), exercised by a test.
 
 ### 4. Sync
 
-- [ ] Push pending likes to the NAS; pull the NAS like set on refresh and reconcile.
-- [ ] Conflict policy (last-writer-wins by `updated_at`) with a test.
-- [ ] A failed sync keeps the local like and retries; it never silently drops a like.
+- [x] Push pending likes to the NAS; pull the NAS like set on refresh and reconcile.
+- [x] Conflict policy (last-writer-wins by `updated_at`) with a test.
+- [x] A failed sync keeps the local like and retries; it never silently drops a like.
 
 ### 5. UI
 
-- [ ] A like toggle (heart) in the viewer, beside share and download.
-- [ ] A like indicator on grid cells, and a tap target if it earns one.
-- [ ] Liked-first ordering within each year of the day view; decide whether to add a "liked only"
+- [x] A like toggle (heart) in the viewer, beside share and download.
+- [x] A like indicator on grid cells, and a tap target if it earns one.
+- [x] Liked-first ordering within each year of the day view; decide whether to add a "liked only"
       filter.
 
 ### 6. Hardening
 
-- [ ] A test asserting the write allowlist holds only like operations and nothing destructive.
-- [ ] A test asserting account change clears the local like cache but not the NAS copy.
-- [ ] The write path is shown, by name, to touch only the like and nothing else.
+- [x] A test asserting the write allowlist holds only like operations and nothing destructive.
+- [x] A test asserting account change clears the local like cache but not the NAS copy.
+- [x] The write path is shown, by name, to touch only the like and nothing else.
 
 ## Acceptance criteria
+
+All await the live test on 2026-09-03.
 
 - [ ] Liking an item in the app is visible on a second device signed in as the same account after a
       refresh.
@@ -189,6 +196,19 @@ Writing must be as disciplined as reading is:
 - [ ] Every write the app can make maps, by name, to a like operation; no destructive triple
       exists in the write allowlist.
 - [ ] Photos that are not liked are never modified on the NAS in any way.
+
+## What is built (2026-09-02)
+
+- Write allowlist split from the read allowlist; only `SYNO.FileStation.Upload` v2 is a write,
+  `SYNO.FileStation.Download` v2 is a read. `FileStationClient` does both, allowlist-checked, no
+  body logged.
+- `likes.json` on the NAS via `LikesNasStore`; the local cache is Room `item_like`; `LikeRepository`
+  toggles optimistically and reconciles last-writer-wins (`LikesMerge`), and is an account-data
+  wiper (local only).
+- Heart toggle in the viewer, a heart badge on liked grid cells, liked-first ordering per year, and
+  an editable likes-folder setting (default `/home/OnThisDay`).
+- Tests: like key, file round-trip, merge last-writer-wins and order-independence, and the write
+  allowlist hardening. 64 JVM tests pass.
 
 ## Open questions
 
