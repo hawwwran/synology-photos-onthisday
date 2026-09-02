@@ -50,6 +50,17 @@ HTTPS to a Synology DDNS hostname carrying a Let's Encrypt certificate issued th
   member would need a VPN client running for the app to work, and the app is useless when the
   tunnel is down. Still the right answer if the exposed port ever becomes a problem.
 
+## Amendments
+
+- 2026-09-02: The hostname is a domain the owner already holds, pointed at the home public IP,
+  with a non-default router port forwarded to DSM's HTTPS port. Not a Synology DDNS name. The
+  forward was verified reachable from outside the LAN on this date; DSM still served its default
+  self-signed certificate, so nothing could connect yet. Consequence for prerequisite 2: DSM's
+  Let's Encrypt integration validates an owned domain over HTTP-01, so port 80 has to reach the
+  NAS at issuance and at every renewal. A Synology DDNS name would have avoided that, at the cost
+  of a second hostname. The hostname and port themselves are not recorded here: the repo may
+  become public, and they are configuration, not architecture.
+
 ## Related
 
 [[003-authentication-and-sessions]]
