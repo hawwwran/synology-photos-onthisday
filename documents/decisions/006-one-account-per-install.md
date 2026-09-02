@@ -40,6 +40,14 @@ The trusted-device id may survive, since it belongs to the device rather than to
 - 2026-09-02: there are no running totals since [[005-day-index-on-device]]'s amendment of the
   same day. The wipe list is the day histogram, the item rows, the thumbnail cache and the
   session; nothing else is stored.
+- 2026-09-02, plan 004: the thumbnail disk cache is cleared on a change of account, **not** on a
+  same-account sign-out. Plan 004 requires that signing out and back in as the same person does
+  not re-download thumbnails, so the Coil cache survives sign-out; it is keyed independently of
+  the session ([[005-day-index-on-device]]). No leak follows: a different account's sign-in wipes
+  the thumbnail cache before any of its data is shown, which is the moment the original context
+  section is written for. The day histogram and item rows are still cleared on sign-out as
+  before. `SessionManager` splits this into two wiper groups: one for the index (sign-out and
+  account change) and one for the thumbnail cache (account change only).
 
 ## Related
 

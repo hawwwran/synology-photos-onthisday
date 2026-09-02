@@ -15,6 +15,7 @@ import com.hawwwran.photosonthisday.api.TimelineApi
 import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.data.DayIndexRepository
 import com.hawwwran.photosonthisday.data.RoomDayIndexStore
+import com.hawwwran.photosonthisday.data.ThumbnailCacheWiper
 import com.hawwwran.photosonthisday.data.db.AppDatabase
 import com.hawwwran.photosonthisday.session.AccountDataWiper
 import com.hawwwran.photosonthisday.session.SessionManager
@@ -85,7 +86,10 @@ class AppGraph(context: Context) {
     /** Filled as caches appear; read at wipe time, so registration order is free. */
     val accountDataWipers = mutableListOf<AccountDataWiper>()
 
-    val sessions = SessionManager(authApi, sessionStore, accountDataWipers)
+    /** Cleared only when the account changes, so a same-account sign-out keeps cached images. */
+    private val thumbnailWiper = ThumbnailCacheWiper(context.applicationContext)
+
+    val sessions = SessionManager(authApi, sessionStore, accountDataWipers, listOf(thumbnailWiper))
 
     val dayIndex = DayIndexRepository(
         store = RoomDayIndexStore(database.dayIndexDao()),

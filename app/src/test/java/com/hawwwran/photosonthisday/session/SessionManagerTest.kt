@@ -31,6 +31,7 @@ class SessionManagerTest {
     private val storeScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private lateinit var store: SessionStore
     private val wipes = mutableListOf<String>()
+    private val thumbWipes = mutableListOf<String>()
     private lateinit var sessions: SessionManager
 
     @Before
@@ -44,6 +45,7 @@ class SessionManagerTest {
             auth = AuthApi(SynologyClient(OkHttpClient())),
             store = store,
             wipers = listOf(AccountDataWiper { wipes += "wiped" }),
+            accountChangeOnlyWipers = listOf(AccountDataWiper { thumbWipes += "thumbs" }),
         )
     }
 
@@ -106,6 +108,7 @@ class SessionManagerTest {
         sessions.signIn(server.url("/"), "bob", "pw", null)
 
         assertEquals(listOf("wiped"), wipes)
+        assertEquals(listOf("thumbs"), thumbWipes) // account change also clears the thumbnail cache
         assertEquals("bob", (store.state.first() as SessionState.SignedIn).session.account)
     }
 
@@ -122,6 +125,7 @@ class SessionManagerTest {
         sessions.signIn(server.url("/"), "anna", "pw", null)
 
         assertTrue(wipes.isEmpty())
+        assertTrue("same-account re-login keeps the thumbnail cache", thumbWipes.isEmpty())
         assertEquals("S2", (store.state.first() as SessionState.SignedIn).session.credentials.sid)
     }
 
@@ -141,6 +145,7 @@ class SessionManagerTest {
         assertEquals("anna", state.lastAccount)
         assertEquals(server.url("/").toString(), state.lastBaseUrl)
         assertEquals(listOf("wiped"), wipes)
+        assertTrue("sign-out keeps the thumbnail cache for a same-account re-login", thumbWipes.isEmpty())
     }
 
     @Test

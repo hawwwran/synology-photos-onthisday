@@ -18,7 +18,14 @@ fun interface AccountDataWiper {
 class SessionManager(
     private val auth: AuthApi,
     private val store: SessionStore,
+    /** Cleared on sign-out and on account change: the day index and item rows. */
     private val wipers: List<AccountDataWiper>,
+    /**
+     * Cleared on account change only: the thumbnail cache. A same-account sign-out keeps it, so
+     * signing back in does not re-download (plan 004 acceptance); a different account still wipes
+     * it before any of its data is shown, so nothing leaks (decision 006, amended 2026-09-02).
+     */
+    private val accountChangeOnlyWipers: List<AccountDataWiper> = emptyList(),
 ) {
 
     sealed interface SignInOutcome {
@@ -57,7 +64,10 @@ class SessionManager(
 
         // Decision 006: another account's data is destroyed before the new one shows anything.
         val previous = store.lastAccount()
-        if (previous != null && previous != accountName) wipeAll()
+        if (previous != null && previous != accountName) {
+            wipeAll()
+            accountChangeOnlyWipers.forEach { it.wipe() }
+        }
 
         store.save(Session(baseUrl, accountName, result.credentials), result.deviceId)
         return SignInOutcome.Success
@@ -82,6 +92,7 @@ class SessionManager(
         store.markExpired()
     }
 
+    // The thumbnail cache is deliberately not wiped here: a same-account sign-out keeps it.
     private suspend fun wipeAll() {
         wipers.forEach { it.wipe() }
     }

@@ -21,6 +21,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -78,7 +79,13 @@ fun DayScreen(viewModel: DayViewModel, auth: ThumbnailAuth, onSignOut: () -> Uni
                         textAlign = TextAlign.Center,
                     )
 
-                is DayIndexState.Ready -> DayGrid(current.selection, sections, auth)
+                is DayIndexState.Ready -> PullToRefreshBox(
+                    isRefreshing = refreshing,
+                    onRefresh = viewModel::refresh,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    DayGrid(current.selection, sections, auth)
+                }
             }
         }
     }

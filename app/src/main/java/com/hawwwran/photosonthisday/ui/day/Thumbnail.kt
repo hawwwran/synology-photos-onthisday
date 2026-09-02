@@ -1,5 +1,6 @@
 package com.hawwwran.photosonthisday.ui.day
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -51,7 +52,8 @@ fun Thumbnail(ref: ThumbnailRef, auth: ThumbnailAuth, isVideo: Boolean, modifier
             .crossfade(true)
             .build()
     }
-    Box(modifier) {
+    // A muted ground so a slow or failed cell reads as a photo slot, never the empty-day screen.
+    Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
         AsyncImage(
             model = request,
             contentDescription = null,
