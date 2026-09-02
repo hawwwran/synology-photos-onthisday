@@ -26,3 +26,22 @@ data class IndexMetaEntity(
         const val SINGLETON = 0
     }
 }
+
+/**
+ * A cached item of one opened day. Keyed by (namespace, id): one photo, one namespace. The day
+ * columns let a day be queried and replaced as a unit when it is reopened.
+ */
+@Entity(tableName = "item_row", primaryKeys = ["namespace", "id"])
+data class ItemRowEntity(
+    val namespace: String,
+    val id: Int,
+    val unitId: Int,
+    val cacheKey: String,
+    val takenTime: Long,
+    val isVideo: Boolean,
+    val width: Int,
+    val height: Int,
+    val year: Int,
+    val month: Int,
+    val day: Int,
+)

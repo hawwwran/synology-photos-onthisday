@@ -3,11 +3,13 @@ package com.hawwwran.photosonthisday.data
 import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.DsmErrorText
 import com.hawwwran.photosonthisday.api.ItemApi
+import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.api.Space
 import com.hawwwran.photosonthisday.api.TimelineApi
 import com.hawwwran.photosonthisday.core.DayBucket
 import com.hawwwran.photosonthisday.core.DaySelection
 import com.hawwwran.photosonthisday.core.MonthDay
+import com.hawwwran.photosonthisday.core.dayRangeUtc
 import com.hawwwran.photosonthisday.core.selectDay
 import com.hawwwran.photosonthisday.session.AccountDataWiper
 import com.hawwwran.photosonthisday.session.Session
@@ -71,6 +73,49 @@ class DayIndexRepository(
     suspend fun refreshIfStale(session: Session): RefreshResult =
         if (isStale()) refresh(session) else RefreshResult.Success
 
+    /** The cached photos of one year's day, both namespaces merged, newest first. Cache first. */
+    fun observeDay(year: Int, monthDay: MonthDay): Flow<List<PhotoItem>> = store.items(year, monthDay)
+
+    /**
+     * Fetch one year's day from both namespaces and cache it. Pages within the day's time range
+     * so a day larger than one page is read in slices. A fetched count that disagrees with the
+     * histogram is logged and marks the index stale, so the next open refreshes it (decision 005).
+     */
+    suspend fun fetchDay(session: Session, year: Int, monthDay: MonthDay): RefreshResult {
+        val range = dayRangeUtc(year, monthDay)
+        try {
+            var total = 0
+            for (space in Space.entries) {
+                val items = ArrayList<PhotoItem>()
+                var offset = 0
+                while (offset < MAX_ITEMS_PER_DAY) {
+                    val page = itemApi.list(session.baseUrl, space, range, offset, PAGE_SIZE, session.credentials)
+                    items += page
+                    if (page.size < PAGE_SIZE) break
+                    offset += PAGE_SIZE
+                }
+                store.replaceDayItems(space, year, monthDay, items)
+                total += items.size
+            }
+            val expected = expectedCount(year, monthDay)
+            if (expected != null && expected != total) {
+                IndexLog.dayCountMismatch(year, monthDay, total, expected)
+                store.setRefreshedAt(0L) // schedule a histogram refresh on the next open
+            }
+            return RefreshResult.Success
+        } catch (e: ApiFailure.SessionExpired) {
+            onSessionExpired()
+            return RefreshResult.SessionExpired
+        } catch (e: ApiFailure) {
+            return RefreshResult.Failed(DsmErrorText.forFailure(e))
+        }
+    }
+
+    private suspend fun expectedCount(year: Int, monthDay: MonthDay): Int? {
+        val forDay = store.buckets().first().filter { it.bucket.year == year && it.bucket.monthDay == monthDay }
+        return if (forDay.isEmpty()) null else forDay.sumOf { it.bucket.itemCount }
+    }
+
     /**
      * Fetch both namespaces and replace the stored index. The item count is fetched too and
      * compared with the flattened total: a mismatch is logged, not fatal, and does not block the
@@ -108,5 +153,11 @@ class DayIndexRepository(
     companion object {
         /** Twelve hours: a household adds photos across a day, not by the minute. */
         const val DEFAULT_STALE_AFTER = 12 * 60 * 60 * 1000L
+
+        /** A page of the item list; a day is read in slices of this size. */
+        const val PAGE_SIZE = 200
+
+        /** A stop, so a wrong range can never page forever. The largest observed day is ~1,220. */
+        const val MAX_ITEMS_PER_DAY = 20_000
     }
 }
