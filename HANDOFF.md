@@ -21,11 +21,11 @@ per-account access and the app implements no permission logic. That is
 | Area | State |
 | --- | --- |
 | Gradle build | Works. `./gradlew testDebugUnitTest assembleDebug` is green, 6 tests pass |
-| App shell | `OnThisDayApp`, `MainActivity` with a placeholder screen, Compose theme from the icon palette |
+| App shell | Sign-in flow: `SynologyClient`/`AuthApi`, `SessionStore`/`SessionManager`, `SignInScreen`, `AppRoot`. Day screen still a placeholder |
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-005. 001 is done; U6 dropped by the owner |
+| Plans | 001-005. 001 done, 002 done (one acceptance waits for 003), 003 partly |
 | Decisions | 001-007. 002, 004 and 005 amended today; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
@@ -50,11 +50,13 @@ trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-1. **Plans 002 and 003**, in either order. Plan 001 is closed; decision 005 is amended to fetch
-   a day by `start_time`/`end_time`, and plans 003 and 004 already reflect that.
-2. **Optional second run as the owner.** The script carries probes for a cookie-borne session on
-   thumbnail GETs (keeps session ids out of the proxy log) and for `device_id`. Nothing waits
-   on it.
+1. **Plan 003**, the day histogram and Room. It fetches both timelines through `SynologyClient`,
+   flattens `data.section[]` (dedup days), stores the histogram in Room scoped to the account,
+   and registers an `AccountDataWiper`. Its first call also closes plan 002's last acceptance
+   box: catch `ApiFailure.SessionExpired`, call `SessionManager.onSessionExpired()`.
+2. **Plan 004** after it: day screen, `start_time`/`end_time` fetch, Coil with `X-SYNO-TOKEN`.
+3. **Optional second run as the owner.** The script carries probes for a cookie-borne session on
+   thumbnail GETs (keeps session ids out of the proxy log) and for `device_id`. Nothing waits on it.
 
 ```bash
 cd ~/git/synology-photos-onthisday
@@ -74,7 +76,7 @@ without the names.
 
 - Photos web API is the only source. No backend, nothing deployed to the NAS.
 - Personal **and** shared space, merged. Every call once per namespace; rows keep their namespace.
-- Session id stored, password never. Expiry re-prompts. Trusted-device id kept.
+- Session id stored, password never. Expiry re-prompts. Trusted-device id kept. Built in plan 002.
 - HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no
   TLS code. The auto-block-sees-the-proxy exposure is accepted (Q4).
 - The day histogram lives in Room and answers day questions offline. A day's photos are fetched

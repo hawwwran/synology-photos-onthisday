@@ -6,7 +6,7 @@ dependency column is.
 | Plan | Title | Status | Depends on | Progress |
 | --- | --- | --- | --- | --- |
 | [001](001-api-observation.md) | API observation | Done, U6 dropped | nothing | 8 / 9 |
-| [002](002-foundation-and-auth.md) | Foundation and sign-in | Not started | 001 | 0 / 14 |
+| [002](002-foundation-and-auth.md) | Foundation and sign-in | Done (one acceptance check waits for 003) | 001 | 14 / 14 |
 | [003](003-day-index.md) | Day histogram and day selection | Partly done | 001 | 3 / 12 |
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Not started | 002, 003 | 0 / 14 |
 | [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Not started | 004 | 0 / 11 |

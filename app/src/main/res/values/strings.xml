@@ -1,3 +1,16 @@
 <resources>
     <string name="app_name">On This Day</string>
+
+    <string name="signin_intro">Sign in with your Synology account. The password is used once and never stored.</string>
+    <string name="signin_expired">The NAS ended your previous session. Sign in again to continue.</string>
+    <string name="signin_host">NAS address</string>
+    <string name="signin_account">Account</string>
+    <string name="signin_password">Password</string>
+    <string name="signin_otp">Two-factor code</string>
+    <string name="signin_submit">Sign in</string>
+    <string name="signin_autoblock_note">The NAS blocks an address after several failed attempts. Check the details before trying again; nothing is retried on its own.</string>
+
+    <string name="day_signed_in_as">Signed in as %1$s at %2$s.</string>
+    <string name="day_placeholder_note">The day screen arrives with plan 004.</string>
+    <string name="sign_out">Sign out</string>
 </resources>
