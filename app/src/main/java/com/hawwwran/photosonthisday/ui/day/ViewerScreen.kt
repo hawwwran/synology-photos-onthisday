@@ -36,11 +36,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import com.hawwwran.photosonthisday.R
-import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.ThumbnailRef
 import com.hawwwran.photosonthisday.api.ThumbnailSize
 import com.hawwwran.photosonthisday.api.ThumbnailUrls
@@ -112,12 +110,8 @@ private fun ZoomableImage(entry: ViewerItem, auth: ThumbnailAuth) {
     val ref = ThumbnailRef(entry.item.space, entry.item.unitId, entry.item.cacheKey, ThumbnailSize.LARGE)
     val request = remember(ref, auth) {
         ImageRequest.Builder(context)
-            .data(ThumbnailUrls.get(auth.baseUrl, ref, auth.sid).toString())
-            .apply {
-                if (!auth.token.isNullOrEmpty()) {
-                    httpHeaders(NetworkHeaders.Builder().set(SynologyClient.SYNO_TOKEN_HEADER, auth.token).build())
-                }
-            }
+            .data(ThumbnailUrls.get(auth.baseUrl, ref).toString())
+            .httpHeaders(auth.networkHeaders())
             .memoryCacheKey(ref.cacheId)
             .diskCacheKey(ref.cacheId)
             .build()

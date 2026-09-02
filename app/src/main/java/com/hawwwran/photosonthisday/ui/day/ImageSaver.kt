@@ -5,9 +5,10 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import android.util.Log
+import com.hawwwran.photosonthisday.api.DownloadUrls
+import com.hawwwran.photosonthisday.api.Space
 import com.hawwwran.photosonthisday.api.SynologyClient
-import com.hawwwran.photosonthisday.api.ThumbnailRef
-import com.hawwwran.photosonthisday.api.ThumbnailUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl
@@ -21,52 +22,73 @@ sealed interface SaveResult {
 }
 
 /**
- * Saves a photo to the device's Pictures collection through MediaStore, so it lands in the
- * gallery without any storage permission on API 29+ (minSdk is 26; the pre-29 path writes to
- * the public Pictures directory, which the legacy WRITE permission covers if present).
+ * Saves the original file to the device's gallery through MediaStore, so it lands there with no
+ * storage permission on API 29+ (the pre-29 path is covered by the manifest's scoped
+ * WRITE_EXTERNAL_STORAGE). The bytes come from `SYNO.Foto.Download`, which returns the original
+ * (research, download probe), so this is the real file, not a rendition. The session travels in
+ * a cookie and the token in its header, so the request URL carries nothing secret.
  *
- * This saves the largest rendition the observed API serves (`xl`). The byte-exact original needs
- * `SYNO.Foto.Download`, which plan 001 did not observe and this project does not guess; see the
- * blocked task in plan 005.
+ * The response is streamed, not buffered, because an original can be a large video.
  */
 class ImageSaver(
     private val context: Context,
     private val http: OkHttpClient,
 ) {
-    suspend fun save(baseUrl: HttpUrl, ref: ThumbnailRef, sid: String, token: String?): SaveResult =
+    suspend fun save(baseUrl: HttpUrl, space: Space, unitId: Int, sid: String, token: String?): SaveResult =
         withContext(Dispatchers.IO) {
-            val url = ThumbnailUrls.get(baseUrl, ref, sid)
-            val request = Request.Builder().url(url)
+            val request = Request.Builder()
+                .url(DownloadUrls.original(baseUrl, space, unitId, sid))
                 .apply { if (!token.isNullOrEmpty()) header(SynologyClient.SYNO_TOKEN_HEADER, token) }
                 .build()
             try {
                 http.newCall(request).execute().use { response ->
-                    val body = response.body
-                    val type = response.header("Content-Type").orEmpty()
-                    if (!response.isSuccessful || !type.startsWith("image/")) {
-                        return@withContext SaveResult.Failed("The NAS did not return an image.")
+                    val type = response.header("Content-Type").orEmpty().substringBefore(';').trim()
+                    if (!response.isSuccessful || !(type.startsWith("image/") || type.startsWith("video/"))) {
+                        // Safe to log: the call name, the code and the type; never the body.
+                        Log.w("PhotosApi", "${space.apiPrefix}.Download: HTTP ${response.code}, type '$type'")
+                        return@withContext SaveResult.Failed("NAS nevrátil soubor.")
                     }
-                    writeToPictures(ref, type, body.bytes())
+                    val body = response.body ?: return@withContext SaveResult.Failed("Prázdná odpověď.")
+                    writeToGallery(unitId, type, body.byteStream())
                 }
                 SaveResult.Success
             } catch (e: IOException) {
-                SaveResult.Failed("Could not reach the NAS.")
+                SaveResult.Failed("NAS není dostupný.")
             }
         }
 
-    private fun writeToPictures(ref: ThumbnailRef, contentType: String, bytes: ByteArray) {
-        val extension = if ("png" in contentType) "png" else "jpg"
-        val name = "OnThisDay-${ref.unitId}.$extension"
+    private fun writeToGallery(unitId: Int, contentType: String, source: java.io.InputStream) {
+        val isVideo = contentType.startsWith("video/")
+        val extension = EXTENSIONS[contentType] ?: if (isVideo) "mp4" else "jpg"
+        val name = "OnThisDay-$unitId.$extension"
+        val collection = if (isVideo) {
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        } else {
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        }
+        val folder = if (isVideo) Environment.DIRECTORY_MOVIES else Environment.DIRECTORY_PICTURES
         val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, name)
-            put(MediaStore.Images.Media.MIME_TYPE, if (extension == "png") "image/png" else "image/jpeg")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, contentType)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/On This Day")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "$folder/On This Day")
             }
         }
         val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            ?: throw IOException("MediaStore refused the insert")
-        resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: throw IOException("no output stream")
+        val uri = resolver.insert(collection, values) ?: throw IOException("MediaStore refused the insert")
+        resolver.openOutputStream(uri)?.use { out -> source.use { it.copyTo(out) } }
+            ?: throw IOException("no output stream")
+    }
+
+    private companion object {
+        val EXTENSIONS = mapOf(
+            "image/jpeg" to "jpg",
+            "image/png" to "png",
+            "image/heic" to "heic",
+            "image/heif" to "heic",
+            "image/webp" to "webp",
+            "video/mp4" to "mp4",
+            "video/quicktime" to "mov",
+        )
     }
 }

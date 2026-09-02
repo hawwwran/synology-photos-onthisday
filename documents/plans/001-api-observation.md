@@ -48,12 +48,10 @@ question and ended rather than exploring.
 
 ## Follow-up run
 
-Optional. The run raised two questions the next plans would otherwise guess at, so the script
-gained probes for them: whether `start_time`/`end_time` ends are inclusive and cut days the way
-the histogram does (decides decision 005's amendment), and whether the thumbnail GET accepts
-the session as a `Cookie: id=` header so URLs carry no secret (decides plan 004's image
-loader). One more run as the owner answers both; the research file says how to build safely
-without it.
+Done, second owner run on 2026-09-02. It settled: `SYNO.Foto.Download` `download` v2 with
+`unit_id=[<id>]` returns the original (plan 005's save); `end_time` is inclusive; the thumbnail
+GET works with a `Cookie: id=` header so URLs carry no session id; and `device_id` is returned
+on login. All recorded in the research file under "Update, second run".
 
 ## On completion
 

@@ -1,11 +1,11 @@
 # 005 - Viewer, download, hardening
 
-- **Status:** Mostly done; two items blocked on external inputs (see below)
+- **Status:** 10/11; only the release-signed build remains, waiting on a keystore
 - **Source:** plan.md §2, §7, §8.3, §8.4
 - **Depends on:** 004
 - **Blocks:** nothing
 - **Decisions:** [003](../decisions/003-authentication-and-sessions.md), [006](../decisions/006-one-account-per-install.md)
-- **Progress:** 9 / 11
+- **Progress:** 10 / 11
 
 ## Goal
 
@@ -19,12 +19,11 @@ plan.md §2 backed by something that fails when it is broken.
 - [x] Fullscreen pager across the whole day, all years in one sequence, year and time shown.
 - [x] Larger thumbnail on open, and pinch-zoom. Zoom shows the large rendition (`xl`); the
       byte-original on zoom awaits the Download endpoint, see the blocked item below.
-- [ ] Download the original to the device's pictures collection, with a progress indication.
-      > Blocked: `SYNO.Foto.Download` was not observed and this project does not guess an
-      > endpoint. A save-to-gallery of the largest rendition (`xl`) is shipped as the interim,
-      > with a progress spinner; `ImageSaver` streams to MediaStore. `observe-photos-api.sh`
-      > now probes the download endpoint, so one owner run settles the parameter and version,
-      > after which the saver switches to the original.
+- [x] Download the original to the device's pictures collection, with a progress indication.
+      `SYNO.Foto.Download` `download` v2 with `unit_id=[<id>]`, settled by the second owner run
+      (research, "Update, second run"). `ImageSaver` streams the original to MediaStore, images to
+      Pictures and videos to Movies, with a spinner while it runs. Verified on device: the saved
+      file is the 4.06 MB original, not the 338 KB rendition.
 
 ### Settings
 
@@ -48,6 +47,11 @@ plan.md §2 backed by something that fails when it is broken.
       > remaining owner step; then `assembleRelease` and the install-over-debug check can run.
 
 ## On-device verification, 2026-09-02
+
+The second owner run also let the thumbnail GET move its session into a `Cookie: id=` header, so
+thumbnail URLs no longer carry `_sid` and the reverse proxy's access log never sees it. The
+download keeps `_sid` in the query, the only form observed to work for it.
+
 
 Verified on the Vivo V2145 against the live NAS: tapping a grid photo opens the fullscreen
 viewer with the large rendition, the year and taken time overlaid and clear of the status bar

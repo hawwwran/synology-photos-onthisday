@@ -10,7 +10,7 @@ class HardeningTest {
     /** "Synology Photos is read-only." Every allowlisted method is a read verb. */
     @Test
     fun `the allowlist holds only read methods`() {
-        val readMethods = setOf("query", "login", "logout", "get", "list", "count")
+        val readMethods = setOf("query", "login", "logout", "get", "list", "count", "download")
         for (call in Allowlist.all) {
             assertTrue("${call.name} is not a known read method", call.method in readMethods)
         }

@@ -105,6 +105,13 @@ class SynologyClient(
     companion object {
         const val SYNO_TOKEN_HEADER = "X-SYNO-TOKEN"
 
+        /**
+         * DSM reads the session from a cookie named `id`, which keeps the session id out of the
+         * URL and therefore out of the reverse proxy's access log (research U4). Thumbnails and
+         * the download use this instead of `_sid` in the query.
+         */
+        fun sessionCookie(sid: String): String = "id=$sid"
+
         /** Thumbnails (plan 004) build a GET on the same path, so the join lives here once. */
         fun entryCgi(baseUrl: HttpUrl): HttpUrl =
             baseUrl.newBuilder().addPathSegments("webapi/entry.cgi").build()

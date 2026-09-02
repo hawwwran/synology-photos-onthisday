@@ -28,7 +28,13 @@ import com.hawwwran.photosonthisday.api.ThumbnailUrls
 import okhttp3.HttpUrl
 
 /** What the grid needs to fetch a thumbnail: where the NAS is and what proves this session. */
-data class ThumbnailAuth(val baseUrl: HttpUrl, val sid: String, val token: String?)
+data class ThumbnailAuth(val baseUrl: HttpUrl, val sid: String, val token: String?) {
+    /** Session in a cookie, token in its header, so the request URL carries nothing secret. */
+    fun networkHeaders(): NetworkHeaders = NetworkHeaders.Builder()
+        .set("Cookie", SynologyClient.sessionCookie(sid))
+        .apply { if (!token.isNullOrEmpty()) set(SynologyClient.SYNO_TOKEN_HEADER, token) }
+        .build()
+}
 
 /**
  * One grid cell. The disk- and memory-cache key is the unit and size, not the URL, so signing
@@ -41,12 +47,8 @@ fun Thumbnail(ref: ThumbnailRef, auth: ThumbnailAuth, isVideo: Boolean, modifier
     val context = LocalContext.current
     val request = remember(ref, auth) {
         ImageRequest.Builder(context)
-            .data(ThumbnailUrls.get(auth.baseUrl, ref, auth.sid).toString())
-            .apply {
-                if (!auth.token.isNullOrEmpty()) {
-                    httpHeaders(NetworkHeaders.Builder().set(SynologyClient.SYNO_TOKEN_HEADER, auth.token).build())
-                }
-            }
+            .data(ThumbnailUrls.get(auth.baseUrl, ref).toString())
+            .httpHeaders(auth.networkHeaders())
             .memoryCacheKey(ref.cacheId)
             .diskCacheKey(ref.cacheId)
             .crossfade(true)
