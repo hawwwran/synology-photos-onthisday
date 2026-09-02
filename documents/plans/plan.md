@@ -72,6 +72,9 @@ default trust store validates it and the app needs no certificate handling of it
 The base URL, host and port are configuration entered once, so a local address still works
 during development.
 
+Amended by decision 004 on 2026-09-02: in practice the hostname is on the owner's own domain
+and TLS terminates at an existing reverse proxy in front of DSM. The app is unchanged by this.
+
 ## 6. The daily cut
 
 ### 6.1 The day histogram
@@ -107,6 +110,10 @@ because each namespace is its own list.
 
 An overlap read of one item either side of the window verifies the arithmetic; a mismatch falls
 back to a wider read and filters on the returned taken time.
+
+Plan 001 found that the range parameter does exist (`start_time`, `end_time`, U3) and verified
+the arithmetic above once. Whether the range replaces the arithmetic is decision 005's pending
+amendment, after the next observation run settles the boundary semantics.
 
 ## 7. Local storage
 
@@ -148,19 +155,29 @@ Recorded in `documents/decisions/`, and summarised here because they shape every
 
 ## 11. Unknowns
 
-Answered by plan 001, and nothing that depends on one may be guessed.
+Answered by plan 001 on 2026-09-02 against Photos 1.9.1-10928. The detail, shapes and the
+allowlist are in [`documents/research/photos-web-api.md`](../research/photos-web-api.md).
+Nothing that depends on a still-open item may be guessed.
 
-- **U1** The exact api names and version ranges Photos 1.9.1 offers, from `SYNO.API.Info`.
-- **U2** Whether a timeline endpoint exists, its method name, and its response shape.
-- **U3** Whether the item list accepts a time range, and under what parameter names.
-- **U4** The thumbnail endpoint's parameters, and whether a plain GET carrying the session id
-  works, which is what an image loader needs.
-- **U5** Whether taken time is in seconds or milliseconds.
-- **U6** Whether `SYNO.FotoTeam.*` respects per-user folder permissions or returns the whole
-  shared space.
-- **U7** Whether the timeline's day fields are computed in the NAS timezone or in UTC. The app
-  takes Photos' answer either way; this only sets what the app can promise about photos taken
-  near midnight.
+- **U1** Answered. `SYNO.API.Auth` 1-7, `Browse.Timeline` 1-6, `Browse.Item` 1-7, `Thumbnail`
+  1-2, in both namespaces. The `(api, method, version)` allowlist is written down.
+- **U2** Answered. `Browse.Timeline` `get` v6 returns `data.section[]`: pages of about a hundred
+  items, each listing its days as `year, month, day, item_count`. A day larger than a page
+  repeats across sections with its full count, so days are deduplicated when flattened.
+  Flattened, the histogram sums exactly to the item count, in both namespaces.
+- **U3** Answered: yes. `start_time` and `end_time`, epoch seconds. `time_start` and `time_end`
+  are silently ignored. Whether the ends are inclusive is open until the next run, and decision
+  005 is reconsidered then.
+- **U4** Answered. `Thumbnail` `get` v2 as a GET with `id, cache_key, type=unit, size, _sid`
+  serves JPEG bytes, but only with the `X-SYNO-TOKEN` header; without it the same URL returns a
+  JSON error with HTTP 200. Whether the session can travel in a cookie instead of the query
+  string is open until the next run.
+- **U5** Answered. `time` is seconds. `indexed_time` is milliseconds.
+- **U6** Open. Needs a run as the restricted account.
+- **U7** Answered. Days are the UTC calendar date of `time` on 35 of 35 days checked; the
+  Prague date disagrees on 4. Whether `time` is true UTC or the camera's wall clock encoded as
+  UTC is undetermined and irrelevant to the app: a photo belongs to the UTC date of its `time`,
+  and the device zone decides only what today is.
 
 ## 12. Phases
 

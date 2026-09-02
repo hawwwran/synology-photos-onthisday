@@ -69,18 +69,50 @@ def count_key(bucket):
     return None
 
 
+def raw_day_list(doc):
+    """The day dicts in response order, plus how many sections they came from.
+
+    Photos 1.9.1 answers with data.section[], one entry per page of the item list, each
+    carrying its own day list; a day bigger than a page repeats in consecutive sections. Any
+    other shape falls back to the first year/month list found anywhere.
+    """
+    data = doc.get("data", doc) if doc else None
+    if isinstance(data, dict) and isinstance(data.get("section"), list):
+        days = []
+        for s in data["section"]:
+            if isinstance(s, dict) and isinstance(s.get("list"), list):
+                days.extend(b for b in s["list"] if isinstance(b, dict))
+        if days:
+            return days, len(data["section"])
+    found = find_day_list(data)
+    return (found or []), 0
+
+
 def buckets_of(doc):
-    """(entries, count_key, original_order) where entries are (y, m, d|None, n)."""
-    raw = find_day_list(doc.get("data", doc)) if doc else None
+    """(entries, count_key, original_order, info) where entries are (y, m, d|None, n).
+
+    Days are deduplicated on (year, month, day), keeping the first occurrence; `info`
+    reports sections, raw entry count and whether a repeated day ever disagreed on count.
+    """
+    raw, nsections = raw_day_list(doc)
     if not raw:
-        return None, None, None
+        return None, None, None, None
     ck = count_key(raw[0])
     if ck is None:
-        return None, None, None
-    entries = [(b.get("year"), b.get("month"), b.get("day"), b.get(ck, 0)) for b in raw]
+        return None, None, None, None
+    entries, seen, conflicts = [], {}, 0
+    for b in raw:
+        key = (b.get("year"), b.get("month"), b.get("day"))
+        n = b.get(ck, 0)
+        if key in seen:
+            conflicts += seen[key] != n
+            continue
+        seen[key] = n
+        entries.append((*key, n))
     keys = [e[:3] for e in entries]
     order = "desc" if keys == sorted(keys, reverse=True) else "asc" if keys == sorted(keys) else "unsorted"
-    return entries, ck, order
+    info = {"sections": nsections, "raw": len(raw), "conflicts": conflicts, "keys": sorted(raw[0])}
+    return entries, ck, order, info
 
 
 def item_time(item):
@@ -157,15 +189,16 @@ def section_u2(out):
         if st != "ok":
             print(f"  {name}: {st}")
             continue
-        entries, ck, order = buckets_of(doc)
+        entries, ck, order, info = buckets_of(doc)
         if entries is None:
             print(f"  {name}: ok, but no year/month buckets found. data keys: {sorted(doc.get('data', {}))}")
             continue
         has_day = any(e[2] is not None for e in entries)
         newest = max(entries)[:3]
         oldest = min(entries)[:3]
-        print(f"  {name}: ok, {len(entries)} buckets, {'day' if has_day else 'month'} granularity,"
-              f" count key '{ck}', order {order}, bucket keys {sorted(find_day_list(doc['data'])[0])},"
+        print(f"  {name}: ok, {info['sections']} sections, {info['raw']} day entries, {len(entries)} distinct"
+              f" {'days' if has_day else 'months'}, {info['conflicts']} count conflicts on repeats,"
+              f" count key '{ck}', order {order}, bucket keys {info['keys']},"
               f" span {oldest} .. {newest}, total {sum(e[3] for e in entries)}")
         ns = namespace_of(path)
         if has_day and ns not in best:
@@ -303,7 +336,7 @@ def pick_offset_target(out, ns):
     day-granular timeline for the namespace was captured, and the shell skips the check.
     """
     for path in sorted(glob.glob(os.path.join(out, f"timeline-{ns}-*.json"))):
-        entries, _, _ = buckets_of(load(path))
+        entries, _, _, _ = buckets_of(load(path))
         if not entries or not all(e[2] is not None for e in entries):
             continue
         entries = sorted(entries, reverse=True)
@@ -312,6 +345,40 @@ def pick_offset_target(out, ns):
         print(sum(e[3] for e in entries[:idx]), n, y, m, d)
         return
     print("")
+
+
+def section_range(out):
+    """Second-run probes: does start_time/end_time cut the UTC day, and are the ends inclusive."""
+    zone = local_zone()
+    print("Time range semantics (second run)")
+    found = False
+    for ns in ("Foto", "FotoTeam"):
+        day_path = os.path.join(out, f"range-day-{ns}.txt")
+        if not os.path.exists(day_path):
+            continue
+        found = True
+        with open(day_path) as f:
+            day_start = int(f.read().split()[0])
+        target = dt.datetime.fromtimestamp(day_start, dt.timezone.utc).date()
+        with open(os.path.join(out, f"offset-target-{ns}.txt")) as f:
+            expected = int(f.read().split()[1])
+        doc = load(os.path.join(out, f"item-range-day-{ns}.json"))
+        items = items_of(doc)
+        inside = sum(1 for it in items if isinstance(item_time(it)[1], int)
+                     and dates_of(item_time(it)[1], zone)[0] == target)
+        print(f"  {ns}: whole UTC day {target} via start_time/end_time: {status(doc)}, {len(items)} items,"
+              f" {inside} on that UTC date, histogram says {expected}")
+        point_path = os.path.join(out, f"range-point-{ns}.txt")
+        if os.path.exists(point_path):
+            with open(point_path) as f:
+                point = int(f.read().split()[0])
+            pdoc = load(os.path.join(out, f"item-range-point-{ns}.json"))
+            pitems = items_of(pdoc)
+            exact = sum(1 for it in pitems if item_time(it)[1] == point)
+            verdict = "both ends INCLUSIVE" if exact >= 1 else "EXCLUSIVE somewhere, or the filter is not on `time`"
+            print(f"  {ns}: start_time=end_time=<one item's time>: {status(pdoc)}, {len(pitems)} items, {exact} with that exact time => {verdict}")
+    if not found:
+        print("  skipped: no range probes in this directory (first-run capture)")
 
 
 def main():
@@ -335,6 +402,8 @@ def main():
     section_u7(out, timelines or {})
     print()
     section_offset(out)
+    print()
+    section_range(out)
     print("=" * 72)
 
 
