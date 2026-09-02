@@ -91,10 +91,19 @@ class DayViewModel(
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** The shown day's photos as one display-ordered sequence, so the viewer pages across years. */
-    val viewerItems: StateFlow<List<ViewerItem>> = sections
-        .map { list -> list.flatMap { section -> section.items.map { ViewerItem(section.year, it) } } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /**
+     * A snapshot of the shown day as one display-ordered sequence (liked first), for the viewer's
+     * pager. Read directly from the current sections, not a lazily-started flow, so it is correct
+     * the moment the viewer opens; the viewer holds this fixed so a like toggle does not reshuffle.
+     */
+    fun viewerSnapshot(): List<ViewerItem> {
+        val liked = likedKeys.value
+        return _sections.value.flatMap { section ->
+            section.items
+                .sortedByDescending { liked.contains(likeKey(it.space, it.unitId)) }
+                .map { ViewerItem(section.year, it) }
+        }
+    }
 
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
@@ -171,10 +180,18 @@ class DayViewModel(
         return _sections.value.flatMap { it.items }.filter { likeKey(it.space, it.unitId) in keys }
     }
 
-    /** Like every selected item, then reconcile, then leave selection mode. */
+    /**
+     * Toggle the like on the selection: if every selected item is already liked, unlike them all;
+     * otherwise like them all. Then reconcile and leave selection mode.
+     */
     fun likeSelected() {
         viewModelScope.launch {
-            selectedItems().forEach { likes.setLiked(it.space, it.unitId, true) }
+            val items = selectedItems()
+            if (items.isEmpty()) return@launch
+            val current = likedKeys.value
+            val allLiked = items.all { current.contains(likeKey(it.space, it.unitId)) }
+            val target = !allLiked
+            items.forEach { likes.setLiked(it.space, it.unitId, target) }
             likes.sync(session)
             clearSelection()
         }
