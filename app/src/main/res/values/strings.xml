@@ -35,6 +35,7 @@
 
     <string name="viewer_back">Zpět</string>
     <string name="viewer_save">Uložit kopii</string>
+    <string name="viewer_share">Sdílet</string>
     <string name="viewer_saved">Uloženo do fotek.</string>
 
     <string name="settings_title">Nastavení</string>

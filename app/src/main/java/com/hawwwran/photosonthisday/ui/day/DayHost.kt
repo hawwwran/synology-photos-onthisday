@@ -1,6 +1,8 @@
 package com.hawwwran.photosonthisday.ui.day
 
+import android.content.Intent
 import android.widget.Toast
+import androidx.core.content.FileProvider
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -19,6 +21,7 @@ import com.hawwwran.photosonthisday.R
 import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.data.DayIndexRepository
 import com.hawwwran.photosonthisday.data.SaveResult
+import com.hawwwran.photosonthisday.data.ShareResult
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,6 +51,7 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
 
     var nav by remember { mutableStateOf<DayNav>(DayNav.Grid) }
     var saving by remember { mutableStateOf(false) }
+    var sharing by remember { mutableStateOf(false) }
 
     when (val current = nav) {
         DayNav.Grid -> DayScreen(
@@ -66,6 +70,30 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 auth = auth,
                 onBack = { nav = DayNav.Grid },
                 saving = saving,
+                sharing = sharing,
+                onShare = { entry ->
+                    if (!sharing) scope.launch {
+                        sharing = true
+                        val result = graph.mediaSharer.prepare(
+                            session.baseUrl, entry.item.space, entry.item.unitId, auth.sid, auth.token,
+                        )
+                        sharing = false
+                        when (result) {
+                            is ShareResult.Ready -> {
+                                val uri = FileProvider.getUriForFile(
+                                    context, "${context.packageName}.fileprovider", result.file,
+                                )
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = result.mime
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(send, context.getString(R.string.viewer_share)))
+                            }
+                            is ShareResult.Failed -> Toast.makeText(context, result.reason, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
                 onSave = { entry ->
                     if (!saving) scope.launch {
                         saving = true

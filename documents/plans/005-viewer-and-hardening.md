@@ -32,6 +32,11 @@ plan.md §2 backed by something that fails when it is broken.
       (research, "Update, second run"). `ImageSaver` streams the original to MediaStore, images to
       Pictures and videos to Movies, with a spinner while it runs. Verified on device: the saved
       file is the 4.06 MB original, not the 338 KB rendition.
+- [x] Share the original (added at the owner's request): a share button beside download downloads
+      the original into a gitignored temp cache dir, hands it to the Android share sheet through a
+      FileProvider (`${applicationId}.fileprovider`), and sweeps temp copies older than an hour on
+      each share. Verified on device: the share sheet opens with the image and the temp copy is the
+      4.06 MB original.
 
 ### Settings
 

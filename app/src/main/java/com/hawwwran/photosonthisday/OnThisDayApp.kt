@@ -15,6 +15,7 @@ import com.hawwwran.photosonthisday.api.TimelineApi
 import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.data.DayIndexRepository
 import com.hawwwran.photosonthisday.data.ImageSaver
+import com.hawwwran.photosonthisday.data.MediaSharer
 import com.hawwwran.photosonthisday.data.RoomDayIndexStore
 import com.hawwwran.photosonthisday.data.ThumbnailCacheWiper
 import com.hawwwran.photosonthisday.data.db.AppDatabase
@@ -91,6 +92,7 @@ class AppGraph(context: Context) {
     private val thumbnailWiper = ThumbnailCacheWiper(context.applicationContext)
 
     val imageSaver = ImageSaver(context.applicationContext, http)
+    val mediaSharer = MediaSharer(context.applicationContext, http)
 
     val sessions = SessionManager(authApi, sessionStore, accountDataWipers, listOf(thumbnailWiper))
 
