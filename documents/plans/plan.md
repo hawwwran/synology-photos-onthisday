@@ -173,11 +173,13 @@ Nothing that depends on a still-open item may be guessed.
   JSON error with HTTP 200. Whether the session can travel in a cookie instead of the query
   string is open until the next run.
 - **U5** Answered. `time` is seconds. `indexed_time` is milliseconds.
-- **U6** Open. Needs a run as the restricted account.
+- **U6** Dropped by the owner, unanswered: no restricted account exists in this household's use.
+  Decision 002 records the acceptance.
 - **U7** Answered. Days are the UTC calendar date of `time` on 35 of 35 days checked; the
-  Prague date disagrees on 4. Whether `time` is true UTC or the camera's wall clock encoded as
-  UTC is undetermined and irrelevant to the app: a photo belongs to the UTC date of its `time`,
-  and the device zone decides only what today is.
+  Prague date disagrees on 4. `time` is the camera's wall clock stored as if it were UTC (a
+  photo taken at 20:22 local carries 20:22 UTC), so a Photos day is the date the photo was taken
+  on wherever it was taken. The app derives days and clock readings from `time` as UTC and uses
+  the device zone only to decide what today is.
 
 ## 12. Phases
 

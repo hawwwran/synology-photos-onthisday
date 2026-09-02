@@ -5,7 +5,7 @@ dependency column is.
 
 | Plan | Title | Status | Depends on | Progress |
 | --- | --- | --- | --- | --- |
-| [001](001-api-observation.md) | API observation | Partly done, blocked on U6 | nothing | 8 / 9 |
+| [001](001-api-observation.md) | API observation | Done, U6 dropped | nothing | 8 / 9 |
 | [002](002-foundation-and-auth.md) | Foundation and sign-in | Not started | 001 | 0 / 14 |
 | [003](003-day-index.md) | Day histogram and day selection | Partly done | 001 | 3 / 12 |
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Not started | 002, 003 | 0 / 13 |
@@ -19,10 +19,10 @@ dependency column is.
 Plan 003's pure logic is already written and tested (`core/DayIndex.kt`), which is why it starts
 partly done.
 
-Plan 001 ran on 2026-09-02 and answered everything but U6, which needs a second login as the
-restricted account. U6 only decides whether decision 002's merge over-shows to a household
-member, so plans 002 and 003 are unblocked; `documents/research/photos-web-api.md` is the shape
-they build against.
+Plan 001 ran on 2026-09-02 and answered everything but U6, which the owner dropped: no
+restricted account exists in this household's use, so the question has no one to affect. Plans
+002 and 003 are unblocked; `documents/research/photos-web-api.md` is the shape they build
+against.
 
 ## Working rules
 

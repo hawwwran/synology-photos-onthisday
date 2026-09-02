@@ -16,9 +16,9 @@ summary leaves out.
 
 ## Open questions
 
-- **Q1** Does `SYNO.FotoTeam.*` filter by per-user folder permission? If not, [[002]]'s merge
-  shows a household member more than Photos would. Still open after plan 001's first run, which
-  was as the owner; needs the `test-user` run (U6).
+- **Q1** Does `SYNO.FotoTeam.*` filter by per-user folder permission? **Closed unanswered,
+  2026-09-02:** the owner dropped it, because no restricted account exists in this household's
+  use of the app. [[002]] records the acceptance and how to test it if that changes.
 - **Q2** Can a third-party client obtain a Photos-capable session through DSM SSO or OIDC? If
   yes, [[003]]'s password handling gets simpler and should be revisited.
 - **Q3** Does the item list accept a time range on Photos 1.9.1? **Yes**, `start_time` and

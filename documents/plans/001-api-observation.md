@@ -1,6 +1,6 @@
 # 001 - API observation
 
-- **Status:** Partly done, blocked on U6
+- **Status:** Done, U6 dropped by the owner
 - **Source:** plan.md §11
 - **Depends on:** nothing
 - **Blocks:** 002, 003
@@ -34,8 +34,8 @@ question and ended rather than exploring.
 - [x] Taken time unit, seconds or milliseconds, from a known photo (U5).
 - [ ] `SYNO.FotoTeam.*` visibility against a restricted account (U6). The companion repo notes
       `test-user` exists and owns nothing, so this may need a folder shared to it first.
-      > Blocked: the first run was as the owner. Needs a second run of the same script as
-      > `test-user`, then a comparison of `item-count-FotoTeam.json` against 77,436.
+      > Dropped, not blocked: owner decision on 2026-09-02. No restricted account exists in this
+      > household's use of the app, so the answer has no one to affect. Recorded in decision 002.
 - [x] Timeline day fields: NAS timezone or UTC, from a photo taken near midnight (U7).
 
 ## Acceptance criteria
@@ -48,12 +48,12 @@ question and ended rather than exploring.
 
 ## Follow-up run
 
-Plan.md §11 is answered except U6, but the run also raised two questions the next plans would
-otherwise guess at, so the script gained probes for them and one more run as the owner is
-wanted alongside the `test-user` run: whether `start_time`/`end_time` ends are inclusive and cut
-days the way the histogram does (decides decision 005's amendment), and whether the thumbnail
-GET accepts the session as a `Cookie: id=` header so URLs carry no secret (decides plan 004's
-image loader). Both are read calls already on the allowlist.
+Optional. The run raised two questions the next plans would otherwise guess at, so the script
+gained probes for them: whether `start_time`/`end_time` ends are inclusive and cut days the way
+the histogram does (decides decision 005's amendment), and whether the thumbnail GET accepts
+the session as a `Cookie: id=` header so URLs carry no secret (decides plan 004's image
+loader). One more run as the owner answers both; the research file says how to build safely
+without it.
 
 ## On completion
 
