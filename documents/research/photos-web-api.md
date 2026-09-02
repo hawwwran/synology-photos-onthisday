@@ -227,10 +227,11 @@ the two sit next to each other in the same object.
 
 ## U6. Shared space and folder permissions
 
-**Open.** Needs a run as the restricted account (`test-user`, which owns nothing; a folder may
-have to be shared to it first). The comparison is `Browse.Item` `count` on `SYNO.FotoTeam`
-against the owner's 77,436: equal means the shared space ignores per-user folder permission and
-decision 002's merge would show a household member everything.
+**Dropped by the owner on 2026-09-02, unanswered.** There is no restricted account in this
+household's use of the app, so whether `SYNO.FotoTeam.*` filters by folder permission has no
+one it could affect. If that ever changes, the test is `Browse.Item` `count` on
+`SYNO.FotoTeam` as the restricted account against the owner's 77,436: equal means the shared
+space ignores per-user folder permission. Decision 002 records the acceptance.
 
 ## U7. Whose calendar the days are
 
@@ -239,16 +240,19 @@ the 35 days fully covered by the two 100-item samples. Bucketing the same items 
 Europe/Prague date disagrees with the timeline on 4 of those days, always by one photo taken
 within two hours of local midnight.
 
-Two readings fit that, and the captures cannot tell them apart: Photos cuts days in UTC, or
-`time` is the camera's wall clock encoded as if it were UTC (EXIF carries no zone, and Synology
-has historically stored it that way), in which case the days are the camera's own. It does not
-matter to the app. The rule is the same either way, and it is what decision 005 asked for:
-**a photo belongs to the UTC date of its `time`, and the device zone is used for nothing but
-"what is today".** Plan 004's fallback filter on taken time must use that rule.
+Two readings fit that, and the captures alone cannot tell them apart: Photos cuts days in UTC,
+or `time` is the camera's wall clock encoded as if it were UTC. The owner settled it: the newest
+personal item has `time` 20:22:33 rendered as UTC, and the photo was taken at 20:22 local, in
+CEST, where true UTC would have read 18:22. **`time` is the camera's wall clock stored as if it
+were UTC** (EXIF carries no zone, and Synology has always stored it this way), so a timeline
+day is the calendar date the photo was taken on, wherever it was taken. A photo from a holiday
+two zones away lands on its local date there, which is what Photos shows and what a person
+expects.
 
-One photo with a known local capture time would settle the reading: the newest personal item
-has `time` 20:22:33 UTC on 2026-09-01. Taken at 22:22 local means true UTC; taken at 20:22
-means wall clock.
+The rule for the app is what decision 005 asked for: **a photo belongs to the UTC date of its
+`time`, and the device zone is used for nothing but "what is today".** Plan 004's fallback
+filter on taken time must use that rule. Rendering a photo's time of day (plan.md §8.3) is the
+UTC clock reading of `time`, with no conversion.
 
 ## Scale, for the plans that page
 
@@ -262,16 +266,15 @@ means wall clock.
 
 A day of 1,220 items across the two namespaces is the worst case a day screen has to page.
 
-## What the next run should settle
+## What a second run, as the owner, would settle
 
-Two logins, none retried:
-
-1. As the owner: `start_time`/`end_time` boundary semantics (a range of one exact `time`
-   returns one item if inclusive); a whole-day range against the histogram's `item_count`;
-   thumbnail GET with the session in a `Cookie: id=` header and the token in `X-SYNO-TOKEN`,
-   with nothing in the query string; `SynoToken` as a query parameter; whether `device_id`
-   carries a value without a two-factor code.
-2. As `test-user`: U6.
+Optional; the script already carries the probes. One login, not retried: `start_time`/`end_time`
+boundary semantics (a range of one exact `time` returns one item if inclusive); a whole-day
+range against the histogram's `item_count`; thumbnail GET with the session in a `Cookie: id=`
+header and the token in `X-SYNO-TOKEN`, with nothing in the query string; `SynoToken` as a
+query parameter; whether `device_id` carries a value without a two-factor code. Without the
+run, the app can still be built safely: use `end_time = start + 86399`, compare the returned
+count with the histogram, and keep `_sid` in the thumbnail query as observed to work.
 
 ## Deliberately not done
 

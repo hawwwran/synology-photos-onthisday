@@ -40,6 +40,15 @@ disk and shows twice, which is the honest answer.
 - **Shared space only.** Rejected: then per-account sign-in would only affect folder
   permissions, and the app's premise is a personal cut.
 
+## Amendments
+
+- 2026-09-02: plan 001 did not answer U6 and the owner dropped it. Every account that will use
+  the app sees the whole shared space in Photos anyway, so whether `SYNO.FotoTeam.*` filters by
+  folder permission has no one it could affect here. The merge stands. If a restricted account
+  ever appears, the test is `Browse.Item` `count` on `SYNO.FotoTeam` as that account against the
+  owner's count: equal means the shared space ignores folder permission and this decision needs
+  a real answer.
+
 ## Related
 
 [[001-web-api-is-the-only-source]], [[005-day-index-on-device]]

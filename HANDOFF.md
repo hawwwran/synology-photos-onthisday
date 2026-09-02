@@ -25,7 +25,7 @@ per-account access and the app implements no permission logic. That is
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-005. 001 is 8/9, blocked only on U6 |
+| Plans | 001-005. 001 is done; U6 dropped by the owner |
 | Decisions | 001-007. 004 amended twice today; Q4 accepted; Q3 answered yes |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
@@ -43,19 +43,20 @@ after which the histogram sums exactly to the item count in both namespaces (25,
 checked live and holds. The item list **does** accept `start_time`/`end_time` in epoch seconds,
 and silently ignores `time_start`/`time_end`. Thumbnails come from a GET, but only with the
 `X-SYNO-TOKEN` header; without it the same URL returns a JSON error with HTTP 200. `time` is
-seconds, `indexed_time` milliseconds. Timeline days are the UTC calendar date of `time`. The
-login's trusted-device field is `device_id`, not `did`.
+seconds, `indexed_time` milliseconds. Timeline days are the UTC calendar date of `time`, and
+`time` is the camera's wall clock stored as if UTC (owner confirmed a 20:22 photo carries 20:22
+UTC), so a day is the date the photo was taken on wherever it was taken. The login's
+trusted-device field is `device_id`, not `did`.
 
 ## What happens next
 
-1. **Two more runs of the script**, both by the owner at the keyboard, one login attempt each:
-   as the owner again, so the added probes settle the time-range semantics and whether the
-   session can travel in a cookie; and as `test-user` for U6. Then the summariser output goes
-   into the research file, U6 gets ticked, and plan 001 closes.
-2. **Decision 005 amendment.** If the range is inclusive and cuts days as the histogram does,
-   fetching a day becomes `start_time`/`end_time` and the overlap read goes away. The owner
-   decides; the recommendation is written in the research file.
-3. **Plans 002 and 003** are unblocked now and can run in either order.
+1. **Decision 005 amendment**, pending the owner's yes: fetch a day by `start_time`/`end_time`
+   instead of by offset, drop the running totals and the overlap read from plans 003 and 004.
+   The reasoning is in the research file under U3.
+2. **Optional second run as the owner.** The script carries probes for the range's boundary
+   semantics and for a cookie-borne session on thumbnail GETs. The research file says how to
+   build safely without it.
+3. **Plans 002 and 003** are unblocked and can run in either order.
 
 ```bash
 cd ~/git/synology-photos-onthisday
