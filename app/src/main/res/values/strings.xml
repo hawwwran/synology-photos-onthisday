@@ -36,6 +36,8 @@
     <string name="viewer_back">Zpět</string>
     <string name="viewer_save">Uložit kopii</string>
     <string name="viewer_share">Sdílet</string>
+    <string name="viewer_like">Lajkovat</string>
+    <string name="viewer_unlike">Zrušit lajk</string>
     <string name="viewer_saved">Uloženo do fotek.</string>
 
     <string name="settings_title">Nastavení</string>
@@ -46,4 +48,6 @@
     <string name="settings_cache">Mezipaměť náhledů</string>
     <string name="settings_cache_measuring">Zjišťuji…</string>
     <string name="settings_clear_cache">Vymazat mezipaměť</string>
+    <string name="settings_likes_folder">Složka pro lajky na NAS</string>
+    <string name="settings_likes_folder_save">Uložit složku</string>
 </resources>

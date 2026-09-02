@@ -29,7 +29,11 @@ object Allowlist {
     fun thumbnail(space: Space) = ApiCall("${space.apiPrefix}.Thumbnail", "get", 2)
     fun download(space: Space) = ApiCall("${space.apiPrefix}.Download", "download", 2)
 
-    val all: Set<ApiCall> = buildSet {
+    // File Station, for the app's own likes file only (decision 008). Download reads it back.
+    val FS_DOWNLOAD = ApiCall("SYNO.FileStation.Download", "download", 2)
+
+    /** Every read the app may make. Photos is read-only, so this set is all Photos reads plus the likes-file read. */
+    val reads: Set<ApiCall> = buildSet {
         add(API_INFO)
         add(LOGIN)
         add(LOGOUT)
@@ -40,7 +44,16 @@ object Allowlist {
             add(thumbnail(space))
             add(download(space))
         }
+        add(FS_DOWNLOAD)
     }
+
+    // The only write the app may make: saving its own likes file (decision 008). Never a Photos write.
+    val FS_UPLOAD = ApiCall("SYNO.FileStation.Upload", "upload", 2)
+
+    /** Every write the app may make. Deliberately tiny, and never touches a Photos endpoint. */
+    val writes: Set<ApiCall> = setOf(FS_UPLOAD)
+
+    val all: Set<ApiCall> = reads + writes
 
     fun require(call: ApiCall) {
         if (call !in all) throw DisallowedCallException(call)

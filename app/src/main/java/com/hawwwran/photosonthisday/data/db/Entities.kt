@@ -45,3 +45,16 @@ data class ItemRowEntity(
     val month: Int,
     val day: Int,
 )
+
+/**
+ * One item's like, cached locally for instant, offline toggling. The durable copy is the NAS
+ * file (decision 008); `pendingSync` marks a local change not yet pushed. Keyed like the item.
+ */
+@Entity(tableName = "item_like", primaryKeys = ["namespace", "unitId"])
+data class LikeEntity(
+    val namespace: String,
+    val unitId: Int,
+    val liked: Boolean,
+    val updatedAt: Long,
+    val pendingSync: Boolean,
+)

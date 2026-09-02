@@ -11,6 +11,8 @@ import com.hawwwran.photosonthisday.core.previousDay
 import com.hawwwran.photosonthisday.core.selectDay
 import com.hawwwran.photosonthisday.data.DayIndexData
 import com.hawwwran.photosonthisday.data.DayIndexRepository
+import com.hawwwran.photosonthisday.likes.LikeRepository
+import com.hawwwran.photosonthisday.likes.likeKey
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,9 +64,14 @@ sealed interface DayViewState {
  */
 class DayViewModel(
     private val repository: DayIndexRepository,
+    private val likes: LikeRepository,
     private val session: Session,
     private val today: MonthDay,
 ) : ViewModel() {
+
+    /** The keys currently liked, for the heart indicator and the liked-first order. */
+    val likedKeys: StateFlow<Set<String>> =
+        likes.likedKeys.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /** Null means "today, auto"; a value means the user chose that day. */
     private val selectedDay = MutableStateFlow<MonthDay?>(null)
@@ -75,10 +82,17 @@ class DayViewModel(
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayViewState.Loading)
 
     private val _sections = MutableStateFlow<List<YearSection>>(emptyList())
-    val sections: StateFlow<List<YearSection>> = _sections
+
+    /** Year sections with liked items floated to the front of each year (stable otherwise). */
+    val sections: StateFlow<List<YearSection>> =
+        combine(_sections, likedKeys) { list, liked ->
+            list.map { section ->
+                section.copy(items = section.items.sortedByDescending { liked.contains(likeKey(it.space, it.unitId)) })
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** The shown day's photos as one display-ordered sequence, so the viewer pages across years. */
-    val viewerItems: StateFlow<List<ViewerItem>> = _sections
+    val viewerItems: StateFlow<List<ViewerItem>> = sections
         .map { list -> list.flatMap { section -> section.items.map { ViewerItem(section.year, it) } } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -87,6 +101,7 @@ class DayViewModel(
 
     init {
         viewModelScope.launch { repository.refreshIfStale(session) }
+        viewModelScope.launch { likes.sync(session) } // pull the NAS likes so they show, push any pending
         // Reload the year sections whenever the shown day changes or a refresh is asked for.
         viewModelScope.launch {
             combine(dayView, reloadTick) { view, tick -> view to tick }
@@ -121,6 +136,14 @@ class DayViewModel(
     private fun computeView(data: DayIndexData, selected: MonthDay?): DayViewState {
         if (data.days.isNotEmpty()) return shownFor(data.days, selected)
         return if (data.refreshedAt != null) DayViewState.NoPhotos else DayViewState.Loading
+    }
+
+    /** Toggle the like locally at once, then reconcile with the NAS. */
+    fun toggleLike(item: com.hawwwran.photosonthisday.api.PhotoItem) {
+        viewModelScope.launch {
+            likes.toggle(item.space, item.unitId)
+            likes.sync(session)
+        }
     }
 
     private fun shownMonthDay(): MonthDay? = (dayView.value as? DayViewState.Shown)?.monthDay

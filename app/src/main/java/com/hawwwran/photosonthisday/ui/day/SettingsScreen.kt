@@ -3,6 +3,7 @@ package com.hawwwran.photosonthisday.ui.day
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -13,6 +14,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -44,6 +46,8 @@ fun SettingsScreen(
     baseUrl: String,
     account: String,
     refreshHours: Long,
+    likesFolder: String,
+    onLikesFolderChange: (String) -> Unit,
     onClearCache: suspend () -> Unit,
     onBack: () -> Unit,
     onSignOut: () -> Unit,
@@ -77,6 +81,20 @@ fun SettingsScreen(
             Setting(stringResource(R.string.settings_nas), baseUrl)
             Setting(stringResource(R.string.settings_account), account)
             Setting(stringResource(R.string.settings_refresh), stringResource(R.string.settings_refresh_value, refreshHours))
+            HorizontalDivider()
+            var folder by remember(likesFolder) { mutableStateOf(likesFolder) }
+            OutlinedTextField(
+                value = folder,
+                onValueChange = { folder = it },
+                label = { Text(stringResource(R.string.settings_likes_folder)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (folder.trim().trimEnd('/') != likesFolder) {
+                OutlinedButton(onClick = { onLikesFolderChange(folder) }) {
+                    Text(stringResource(R.string.settings_likes_folder_save))
+                }
+            }
             HorizontalDivider()
             Setting(
                 stringResource(R.string.settings_cache),

@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import com.hawwwran.photosonthisday.likes.likeKey
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -65,6 +68,7 @@ import java.time.ZoneOffset
 fun DayScreen(
     viewModel: DayViewModel,
     auth: ThumbnailAuth,
+    likedKeys: Set<String>,
     onOpenPhoto: (Int) -> Unit,
     onOpenSettings: () -> Unit,
     onSignOut: () -> Unit,
@@ -125,7 +129,7 @@ fun DayScreen(
                             onRefresh = viewModel::refresh,
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            DayGrid(current, sections, auth, onOpenPhoto)
+                            DayGrid(current, sections, auth, likedKeys, onOpenPhoto)
                         }
                     } else {
                         Text(
@@ -151,6 +155,7 @@ private fun DayGrid(
     shown: DayViewState.Shown,
     sections: List<YearSection>,
     auth: ThumbnailAuth,
+    likedKeys: Set<String>,
     onOpenPhoto: (Int) -> Unit,
 ) {
     val baseIndex = HashMap<Int, Int>().also { map ->
@@ -203,15 +208,27 @@ private fun DayGrid(
                 items = section.items,
                 key = { _, item -> "${section.year}:${item.space.name}:${item.id}" },
             ) { localIndex, item ->
-                Thumbnail(
-                    ref = ThumbnailRef(item.space, item.unitId, item.cacheKey, ThumbnailSize.MEDIUM),
-                    auth = auth,
-                    isVideo = item.isVideo,
-                    modifier = Modifier
+                Box(
+                    Modifier
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(6.dp))
                         .clickable { onOpenPhoto(start + localIndex) },
-                )
+                ) {
+                    Thumbnail(
+                        ref = ThumbnailRef(item.space, item.unitId, item.cacheKey, ThumbnailSize.MEDIUM),
+                        auth = auth,
+                        isVideo = item.isVideo,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    if (likedKeys.contains(likeKey(item.space, item.unitId))) {
+                        Icon(
+                            imageVector = Icons.Filled.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
+                        )
+                    }
+                }
             }
         }
     }

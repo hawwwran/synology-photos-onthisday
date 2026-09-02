@@ -19,10 +19,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -60,6 +63,7 @@ import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.ThumbnailRef
 import com.hawwwran.photosonthisday.api.ThumbnailSize
 import com.hawwwran.photosonthisday.api.ThumbnailUrls
+import com.hawwwran.photosonthisday.likes.likeKey
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -77,6 +81,8 @@ fun ViewerScreen(
     items: List<ViewerItem>,
     startIndex: Int,
     auth: ThumbnailAuth,
+    likedKeys: Set<String>,
+    onToggleLike: (ViewerItem) -> Unit,
     onBack: () -> Unit,
     onSave: (ViewerItem) -> Unit,
     onShare: (ViewerItem) -> Unit,
@@ -129,6 +135,14 @@ fun ViewerScreen(
                     color = Color.White,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
+                val liked = likedKeys.contains(likeKey(current.item.space, current.item.unitId))
+                IconButton(onClick = { onToggleLike(current) }) {
+                    Icon(
+                        imageVector = if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                        contentDescription = stringResource(if (liked) R.string.viewer_unlike else R.string.viewer_like),
+                        tint = if (liked) MaterialTheme.colorScheme.tertiary else Color.White,
+                    )
+                }
                 if (sharing) {
                     CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.padding(12.dp))
                 } else {

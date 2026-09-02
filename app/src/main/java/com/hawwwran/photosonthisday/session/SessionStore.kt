@@ -71,6 +71,13 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
     /** Survives sign-out and account changes: it belongs to the device, not the account. */
     suspend fun deviceId(): String? = dataStore.data.first()[DEVICE_ID]
 
+    /** The NAS folder holding the likes file (decision 008). Default is the account's home. */
+    fun likesFolder(): Flow<String> = dataStore.data.map { it[LIKES_FOLDER] ?: DEFAULT_LIKES_FOLDER }
+
+    suspend fun setLikesFolder(path: String) {
+        dataStore.edit { it[LIKES_FOLDER] = path.trim().trimEnd('/').ifEmpty { DEFAULT_LIKES_FOLDER } }
+    }
+
     suspend fun save(session: Session, deviceId: String?) {
         dataStore.edit { prefs ->
             prefs[BASE_URL] = session.baseUrl.toString()
@@ -100,12 +107,14 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
-    private companion object {
-        val BASE_URL = stringPreferencesKey("base_url")
-        val ACCOUNT = stringPreferencesKey("account")
-        val SID = stringPreferencesKey("sid")
-        val SYNOTOKEN = stringPreferencesKey("synotoken")
-        val DEVICE_ID = stringPreferencesKey("device_id")
-        val EXPIRED = booleanPreferencesKey("expired")
+    companion object {
+        const val DEFAULT_LIKES_FOLDER = "/home/OnThisDay"
+        private val BASE_URL = stringPreferencesKey("base_url")
+        private val ACCOUNT = stringPreferencesKey("account")
+        private val SID = stringPreferencesKey("sid")
+        private val SYNOTOKEN = stringPreferencesKey("synotoken")
+        private val DEVICE_ID = stringPreferencesKey("device_id")
+        private val EXPIRED = booleanPreferencesKey("expired")
+        private val LIKES_FOLDER = stringPreferencesKey("likes_folder")
     }
 }

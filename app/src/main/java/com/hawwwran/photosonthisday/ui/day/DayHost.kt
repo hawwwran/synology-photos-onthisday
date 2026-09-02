@@ -23,6 +23,7 @@ import com.hawwwran.photosonthisday.data.DayIndexRepository
 import com.hawwwran.photosonthisday.data.SaveResult
 import com.hawwwran.photosonthisday.data.ShareResult
 import com.hawwwran.photosonthisday.session.Session
+import com.hawwwran.photosonthisday.session.SessionStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,10 +45,12 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     val viewModel: DayViewModel = viewModel(
         key = "day-${session.credentials.sid}",
-        factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, session, currentMonthDay()) } },
+        factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, graph.likes, session, currentMonthDay()) } },
     )
     val auth = ThumbnailAuth(session.baseUrl, session.credentials.sid, session.credentials.synotoken)
     val viewerItems by viewModel.viewerItems.collectAsState()
+    val likedKeys by viewModel.likedKeys.collectAsState()
+    val likesFolder by graph.sessionStore.likesFolder().collectAsState(initial = SessionStore.DEFAULT_LIKES_FOLDER)
 
     var nav by remember { mutableStateOf<DayNav>(DayNav.Grid) }
     var saving by remember { mutableStateOf(false) }
@@ -57,6 +60,7 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
         DayNav.Grid -> DayScreen(
             viewModel = viewModel,
             auth = auth,
+            likedKeys = likedKeys,
             onOpenPhoto = { index -> nav = DayNav.Viewer(index) },
             onOpenSettings = { nav = DayNav.Settings },
             onSignOut = onSignOut,
@@ -68,6 +72,8 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 items = viewerItems,
                 startIndex = current.index,
                 auth = auth,
+                likedKeys = likedKeys,
+                onToggleLike = { entry -> viewModel.toggleLike(entry.item) },
                 onBack = { nav = DayNav.Grid },
                 saving = saving,
                 sharing = sharing,
@@ -117,6 +123,8 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 baseUrl = session.baseUrl.toString(),
                 account = session.account,
                 refreshHours = DayIndexRepository.DEFAULT_STALE_AFTER / (60 * 60 * 1000L),
+                likesFolder = likesFolder,
+                onLikesFolderChange = { path -> scope.launch { graph.sessionStore.setLikesFolder(path) } },
                 onClearCache = {
                     withContext(Dispatchers.IO) {
                         val loader = SingletonImageLoader.get(context)
