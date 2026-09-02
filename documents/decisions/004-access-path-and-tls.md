@@ -60,6 +60,17 @@ HTTPS to a Synology DDNS hostname carrying a Let's Encrypt certificate issued th
   NAS at issuance and at every renewal. A Synology DDNS name would have avoided that, at the cost
   of a second hostname. The hostname and port themselves are not recorded here: the repo may
   become public, and they are configuration, not architecture.
+- 2026-09-02, later the same day: the own domain's port 80 is not forwarded to the NAS and the
+  owner does not want it to be, which rules out DSM's Let's Encrypt integration for that name.
+  Resolved with a different topology: an nginx that already serves another of the owner's
+  domains from an LXC container on the router, with automatic Let's Encrypt renewal, gained a
+  vhost that reverse-proxies to DSM's HTTPS port on the LAN. Verified from outside the LAN the
+  same day: trusted chain, HTTP redirected to HTTPS, `SYNO.API.Info` answering through the
+  proxy. Consequences: prerequisites 1 to 3 above are replaced by "a vhost on the existing
+  proxy", DSM's own port need not be exposed at all, and the app is unchanged. New open
+  question: DSM auto-block keys on the client address and sees only the proxy's, so a few
+  failed logins from anyone would ban the proxy for the whole household. Allowlisting the proxy
+  in DSM and rate-limiting the login call in nginx is the likely answer; not yet done.
 
 ## Related
 

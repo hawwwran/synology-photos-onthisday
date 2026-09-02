@@ -22,3 +22,7 @@ summary leaves out.
   yes, [[003]]'s password handling gets simpler and should be revisited.
 - **Q3** Does the item list accept a time range on Photos 1.9.1? If yes, [[005]]'s offset
   arithmetic becomes an optimisation rather than the mechanism. Answered by plan 001 (U3).
+- **Q4** DSM auto-block sees only the reverse proxy's address ([[004]], second amendment), so a
+  few failed logins from any household member would ban the proxy for everyone. Allowlist the
+  proxy in DSM and rate-limit the login call in nginx, or accept it. Decide before plan 002's
+  sign-in screen ships.

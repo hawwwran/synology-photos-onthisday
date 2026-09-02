@@ -205,20 +205,22 @@ trap cleanup EXIT
 AUTH="_sid=$SID"
 
 # ---- U2, U7: the timeline -------------------------------------------------------
-# The histogram decision 005 is built on. Every version SYNO.API.Info admits is probed,
-# plain and with the grouping parameter the Photos web client is believed to send, so
-# one run tells which combination this Photos answers.
+# The histogram decision 005 is built on. Probed plain and with the grouping parameter
+# the Photos web client is believed to send, from the newest version SYNO.API.Info admits
+# downwards, stopping at the first that answers: the app will pin one version, and every
+# probe is a histogram over the whole library.
 note "U2/U7 timeline"
 for ns in SYNO.Foto SYNO.FotoTeam; do
     short="${ns##*.}"
     vmin=$(apiver "$ns.Browse.Timeline" min 1)
     vmax=$(apiver "$ns.Browse.Timeline" max 6)
-    (( vmax - vmin > 5 )) && vmin=$(( vmax - 5 ))
-    for (( v = vmin; v <= vmax; v++ )); do
+    for (( v = vmax; v >= vmin; v-- )); do
         api_call "timeline-$short-v$v" \
             "api=$ns.Browse.Timeline&version=$v&method=get&$AUTH"
+        plain=$VERDICT
         api_call "timeline-$short-v$v-day" \
             "api=$ns.Browse.Timeline&version=$v&method=get&timeline_group_unit=day&$AUTH"
+        [[ "$plain" == ok || "$VERDICT" == ok ]] && break
     done
 done
 note ""
