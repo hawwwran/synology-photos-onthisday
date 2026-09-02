@@ -1,6 +1,7 @@
 package com.hawwwran.photosonthisday.ui.day
 
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import androidx.activity.compose.BackHandler
@@ -68,6 +69,46 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
             onOpenPhoto = { index -> nav = DayNav.Viewer(index) },
             onOpenSettings = { nav = DayNav.Settings },
             onSignOut = onSignOut,
+            onDownloadSelected = { items ->
+                if (!saving && items.isNotEmpty()) scope.launch {
+                    saving = true
+                    var ok = 0
+                    for (item in items) {
+                        val r = graph.imageSaver.save(session.baseUrl, item.space, item.unitId, auth.sid, auth.token)
+                        if (r is com.hawwwran.photosonthisday.data.SaveResult.Success) ok++
+                    }
+                    saving = false
+                    viewModel.clearSelection()
+                    Toast.makeText(context, context.getString(R.string.selection_saved, ok, items.size), Toast.LENGTH_SHORT).show()
+                }
+            },
+            onShareSelected = { items ->
+                if (!sharing && items.isNotEmpty()) scope.launch {
+                    sharing = true
+                    val uris = ArrayList<Uri>()
+                    val mimes = HashSet<String>()
+                    for (item in items) {
+                        val r = graph.mediaSharer.prepare(session.baseUrl, item.space, item.unitId, auth.sid, auth.token)
+                        if (r is ShareResult.Ready) {
+                            uris += FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", r.file)
+                            mimes += r.mime
+                        }
+                    }
+                    sharing = false
+                    viewModel.clearSelection()
+                    if (uris.isEmpty()) {
+                        Toast.makeText(context, context.getString(R.string.selection_share_failed), Toast.LENGTH_SHORT).show()
+                    } else {
+                        val type = mimes.singleOrNull() ?: commonMime(mimes)
+                        val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            this.type = type
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(send, context.getString(R.string.viewer_share)))
+                    }
+                }
+            },
         )
 
         is DayNav.Viewer -> {
@@ -141,4 +182,11 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
             )
         }
     }
+}
+
+/** A shared mime for a multi-share: image or video when uniform, otherwise a wildcard. */
+private fun commonMime(mimes: Set<String>): String = when {
+    mimes.all { it.startsWith("image/") } -> "image/*"
+    mimes.all { it.startsWith("video/") } -> "video/*"
+    else -> "*/*"
 }

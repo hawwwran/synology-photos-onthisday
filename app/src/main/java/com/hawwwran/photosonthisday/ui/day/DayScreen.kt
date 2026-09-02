@@ -1,6 +1,9 @@
 package com.hawwwran.photosonthisday.ui.day
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -46,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -74,42 +83,67 @@ fun DayScreen(
     onOpenPhoto: (Int) -> Unit,
     onOpenSettings: () -> Unit,
     onSignOut: () -> Unit,
+    onDownloadSelected: (List<com.hawwwran.photosonthisday.api.PhotoItem>) -> Unit,
+    onShareSelected: (List<com.hawwwran.photosonthisday.api.PhotoItem>) -> Unit,
 ) {
     val view by viewModel.dayView.collectAsState()
     val sections by viewModel.sections.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
     var picking by remember { mutableStateOf(false) }
+    val selected by viewModel.selected.collectAsState()
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = viewModel::showPreviousDay) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.day_previous))
+            if (selected.isEmpty()) {
+                TopAppBar(
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = viewModel::showPreviousDay) {
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.day_previous))
+                            }
+                            Text(
+                                text = dayTitle(view),
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier.clickable { picking = true }.padding(horizontal = 4.dp),
+                            )
+                            IconButton(onClick = viewModel::showNextDay) {
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.day_next))
+                            }
                         }
-                        Text(
-                            text = dayTitle(view),
-                            style = MaterialTheme.typography.titleLarge,
-                            modifier = Modifier.clickable { picking = true }.padding(horizontal = 4.dp),
-                        )
-                        IconButton(onClick = viewModel::showNextDay) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = stringResource(R.string.day_next))
+                    },
+                    actions = {
+                        IconButton(onClick = viewModel::refresh, enabled = !refreshing) {
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.day_refresh))
                         }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = viewModel::refresh, enabled = !refreshing) {
-                        Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.day_refresh))
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
-                    }
-                    IconButton(onClick = onSignOut) {
-                        Icon(Icons.Filled.Logout, contentDescription = stringResource(R.string.sign_out))
-                    }
-                },
-            )
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
+                        }
+                        IconButton(onClick = onSignOut) {
+                            Icon(Icons.Filled.Logout, contentDescription = stringResource(R.string.sign_out))
+                        }
+                    },
+                )
+            } else {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = viewModel::clearSelection) {
+                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.selection_cancel))
+                        }
+                    },
+                    title = { Text("${selected.size}", style = MaterialTheme.typography.titleLarge) },
+                    actions = {
+                        IconButton(onClick = viewModel::likeSelected) {
+                            Icon(Icons.Filled.Favorite, contentDescription = stringResource(R.string.viewer_like))
+                        }
+                        IconButton(onClick = { onShareSelected(viewModel.selectedItems()) }) {
+                            Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.viewer_share))
+                        }
+                        IconButton(onClick = { onDownloadSelected(viewModel.selectedItems()) }) {
+                            Icon(Icons.Filled.Download, contentDescription = stringResource(R.string.viewer_save))
+                        }
+                    },
+                )
+            }
         },
     ) { insets ->
         Box(Modifier.fillMaxSize().padding(insets)) {
@@ -131,7 +165,7 @@ fun DayScreen(
                             onRefresh = viewModel::refresh,
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            DayGrid(current, sections, auth, likedKeys, gridState, onOpenPhoto)
+                            DayGrid(current, sections, auth, likedKeys, selected, gridState, viewModel, onOpenPhoto)
                         }
                     } else {
                         Text(
@@ -153,12 +187,15 @@ fun DayScreen(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun DayGrid(
     shown: DayViewState.Shown,
     sections: List<YearSection>,
     auth: ThumbnailAuth,
     likedKeys: Set<String>,
+    selected: Set<String>,
     gridState: LazyGridState,
+    viewModel: DayViewModel,
     onOpenPhoto: (Int) -> Unit,
 ) {
     val baseIndex = HashMap<Int, Int>().also { map ->
@@ -212,11 +249,16 @@ private fun DayGrid(
                 items = section.items,
                 key = { _, item -> "${section.year}:${item.space.name}:${item.id}" },
             ) { localIndex, item ->
+                val isSelected = selected.contains(likeKey(item.space, item.unitId))
+                val selectionActive = selected.isNotEmpty()
                 Box(
                     Modifier
                         .aspectRatio(1f)
                         .clip(RoundedCornerShape(6.dp))
-                        .clickable { onOpenPhoto(start + localIndex) },
+                        .combinedClickable(
+                            onClick = { if (selectionActive) viewModel.toggleSelect(item) else onOpenPhoto(start + localIndex) },
+                            onLongClick = { viewModel.startSelect(item) },
+                        ),
                 ) {
                     Thumbnail(
                         ref = ThumbnailRef(item.space, item.unitId, item.cacheKey, ThumbnailSize.MEDIUM),
@@ -230,6 +272,15 @@ private fun DayGrid(
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.tertiary,
                             modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
+                        )
+                    }
+                    if (isSelected) {
+                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+                        Icon(
+                            imageVector = Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.align(Alignment.TopStart).padding(4.dp).size(20.dp),
                         )
                     }
                 }

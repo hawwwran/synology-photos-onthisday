@@ -36,11 +36,16 @@ class LikeRepository(
 
     suspend fun toggle(space: Space, unitId: Int) {
         val current = dao.find(space.name, unitId)?.liked ?: false
+        setLiked(space, unitId, !current)
+    }
+
+    /** Set a like to an exact value; used by the batch "like selected" action. Idempotent. */
+    suspend fun setLiked(space: Space, unitId: Int, liked: Boolean) {
         dao.upsert(
             LikeEntity(
                 namespace = space.name,
                 unitId = unitId,
-                liked = !current,
+                liked = liked,
                 updatedAt = now(),
                 pendingSync = true,
             ),

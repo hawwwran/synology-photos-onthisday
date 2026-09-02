@@ -38,6 +38,9 @@
     <string name="viewer_share">Sdílet</string>
     <string name="viewer_like">Lajkovat</string>
     <string name="viewer_unlike">Zrušit lajk</string>
+    <string name="selection_cancel">Zrušit výběr</string>
+    <string name="selection_saved">Uloženo %1$d z %2$d</string>
+    <string name="selection_share_failed">Sdílení selhalo.</string>
     <string name="viewer_saved">Uloženo do fotek.</string>
 
     <string name="settings_title">Nastavení</string>
