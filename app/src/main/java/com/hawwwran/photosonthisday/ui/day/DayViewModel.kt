@@ -36,13 +36,18 @@ data class YearSection(
     val error: String? = null,
 )
 
-/**
- * The day laid out for the grid: all liked items in one group at the very top (across every year,
- * frozen at day load), then the year groups in date order with the liked ones removed.
- */
-data class DayDisplay(
-    val liked: List<ViewerItem>,
-    val years: List<YearSection>,
+/** A section of the day grid: a year, or the merged "liked" group at the top. */
+sealed interface DaySectionHeader {
+    data object Liked : DaySectionHeader
+    data class Year(val year: Int) : DaySectionHeader
+}
+
+/** One rendered group: its header, its photos, and (for a year) its load state. */
+data class DaySection(
+    val header: DaySectionHeader,
+    val items: List<com.hawwwran.photosonthisday.api.PhotoItem>,
+    val loading: Boolean = false,
+    val error: String? = null,
 )
 
 /** What the day screen shows, for the day currently chosen (today by default, or a browsed day). */
@@ -76,8 +81,12 @@ class DayViewModel(
     private val likes: LikeRepository,
     private val session: Session,
     initialToday: MonthDay,
+    mergeLikedFlow: kotlinx.coroutines.flow.Flow<Boolean>,
     private val todayProvider: () -> MonthDay = { com.hawwwran.photosonthisday.core.currentMonthDay() },
 ) : ViewModel() {
+
+    /** The layout preference: merge liked into one top group, or keep liked first within each year. */
+    private val mergeLiked = mergeLikedFlow.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** "What is today", updatable so the app can roll to a new day when the date changes. */
     private val today = MutableStateFlow(initialToday)
@@ -103,29 +112,40 @@ class DayViewModel(
      */
     private val orderKeys = MutableStateFlow<Set<String>>(emptySet())
 
-    /** The grid layout: a top "liked" group (all liked across the day) then the year groups. */
-    val display: StateFlow<DayDisplay> =
-        combine(_sections, orderKeys) { years, order ->
-            fun liked(item: com.hawwwran.photosonthisday.api.PhotoItem) = order.contains(likeKey(item.space, item.unitId))
-            val likedItems = years.flatMap { y -> y.items.filter(::liked).map { ViewerItem(y.year, it) } }
-            val yearGroups = years
-                .map { y -> y.copy(items = y.items.filterNot(::liked)) }
-                .filter { it.items.isNotEmpty() || (it.loading && it.error == null) }
-            DayDisplay(likedItems, yearGroups)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayDisplay(emptyList(), emptyList()))
+    /** The grid layout as a list of sections, per the merge-liked preference. */
+    val display: StateFlow<List<DaySection>> =
+        combine(_sections, orderKeys, mergeLiked) { years, order, merge ->
+            buildSections(years, order, merge)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
      * A snapshot of the shown day as one display-ordered sequence (liked first), for the viewer's
      * pager. Read directly from the current sections, not a lazily-started flow, so it is correct
      * the moment the viewer opens; the viewer holds this fixed so a like toggle does not reshuffle.
      */
-    fun viewerSnapshot(): List<ViewerItem> {
-        val order = orderKeys.value
-        val years = _sections.value
+    fun viewerSnapshot(): List<ViewerItem> =
+        buildSections(_sections.value, orderKeys.value, mergeLiked.value).flatMap { it.items.map(::ViewerItem) }
+
+    /**
+     * The day's sections in render order. Merged: one liked group at the top (all liked across the
+     * day, frozen) then the years with those removed. Split (default): each year with its liked
+     * kept first. Membership uses the frozen [orderKeys], so a like on the current day never moves
+     * an item until the day reloads.
+     */
+    private fun buildSections(years: List<YearSection>, order: Set<String>, merge: Boolean): List<DaySection> {
         fun liked(item: com.hawwwran.photosonthisday.api.PhotoItem) = order.contains(likeKey(item.space, item.unitId))
-        val likedItems = years.flatMap { y -> y.items.filter(::liked).map { ViewerItem(y.year, it) } }
-        val rest = years.flatMap { y -> y.items.filterNot(::liked).map { ViewerItem(y.year, it) } }
-        return likedItems + rest
+        fun shownYear(section: DaySection) = section.items.isNotEmpty() || (section.loading && section.error == null)
+        if (!merge) {
+            return years.map { y ->
+                DaySection(DaySectionHeader.Year(y.year), y.items.sortedByDescending(::liked), y.loading, y.error)
+            }.filter(::shownYear)
+        }
+        val likedItems = years.flatMap { y -> y.items.filter(::liked) }
+        val yearGroups = years
+            .map { y -> DaySection(DaySectionHeader.Year(y.year), y.items.filterNot(::liked), y.loading, y.error) }
+            .filter(::shownYear)
+        val likedGroup = if (likedItems.isEmpty()) emptyList() else listOf(DaySection(DaySectionHeader.Liked, likedItems))
+        return likedGroup + yearGroups
     }
 
     private val _refreshing = MutableStateFlow(false)

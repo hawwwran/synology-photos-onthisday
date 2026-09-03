@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -48,6 +51,8 @@ fun SettingsScreen(
     refreshHours: Long,
     likesFolder: String,
     onLikesFolderChange: (String) -> Unit,
+    mergeLiked: Boolean,
+    onMergeLikedChange: (Boolean) -> Unit,
     onClearCache: suspend () -> Unit,
     onBack: () -> Unit,
     onSignOut: () -> Unit,
@@ -94,6 +99,10 @@ fun SettingsScreen(
                 OutlinedButton(onClick = { onLikesFolderChange(folder) }) {
                     Text(stringResource(R.string.settings_likes_folder_save))
                 }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.settings_merge_liked), modifier = Modifier.weight(1f))
+                Switch(checked = mergeLiked, onCheckedChange = onMergeLikedChange)
             }
             HorizontalDivider()
             Setting(
