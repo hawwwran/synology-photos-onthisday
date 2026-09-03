@@ -54,11 +54,21 @@ at `~/Android/Sdk` and is gitignored.
 
 ## Release signing
 
-No keystore exists yet. When one is created (`keystore.jks` at the repo root, alias
-`onthisday`), it and the `OTD_KEYSTORE_PASSWORD` / `OTD_KEY_ALIAS` / `OTD_KEY_PASSWORD` lines
-in `~/.gradle/gradle.properties` **must be backed up**: losing either means installed copies
-can never be upgraded in place again. Debug builds co-sign with the release key when the
-keystore is present, so `installDebug` upgrades a release install without uninstalling.
+The keystore exists: `keystore.jks` at the repo root (gitignored), alias `onthisday`, generated
+2026-09-03. Its passwords are `OTD_KEYSTORE_PASSWORD` / `OTD_KEY_ALIAS` / `OTD_KEY_PASSWORD` in
+`~/.gradle/gradle.properties`. The keystore **and** those lines **must be backed up**: losing
+either means installed copies can never be upgraded in place again. Debug builds co-sign with the
+release key when the keystore is present, so `installDebug` upgrades a release install without
+uninstalling.
+
+## Releasing
+
+`~/SynologyDrive/Development/linux/hwntools-custom-packages/releases/release-photos-onthisday.sh`
+(a hwntools launcher package) cuts a release: it clones `origin/main` fresh, so **main must be
+pushed first**, bumps `versionName`/`versionCode` in `app/build.gradle.kts`, builds a signed
+`assembleRelease`, verifies it with `apksigner`, tags `vX.Y.Z`, and uploads the APK to a GitHub
+release (release notes drafted by `claude` from the commit log). The build is local; nothing is
+built on GitHub. The APK is attached as `OnThisDay-<ver>.apk`.
 
 ## Device workflow
 
