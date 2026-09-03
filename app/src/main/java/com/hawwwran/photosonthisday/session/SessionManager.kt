@@ -55,16 +55,15 @@ class SessionManager(
             auth.login(baseUrl, accountName, password, otpCode, store.deviceId())
         } catch (e: ApiFailure.DsmError) {
             return SignInOutcome.Failed(DsmErrorText.forLogin(e.code), needsOtp = e.code in OTP_CODES)
-        } catch (e: ApiFailure.SessionExpired) {
-            // 105 on a login is "not permitted", not an expiry; the login text is the right one.
-            return SignInOutcome.Failed(DsmErrorText.forLogin(e.code))
         } catch (e: ApiFailure) {
             return SignInOutcome.Failed(DsmErrorText.forFailure(e))
         }
 
         // Decision 006: another account's data is destroyed before the new one shows anything.
-        val previous = store.lastAccount()
-        if (previous != null && previous != accountName) {
+        // The identity is the NAS and the name together: "anna" on another NAS is someone else.
+        val previous = store.lastIdentity()
+        val current = AccountIdentity(baseUrl.toString(), accountName)
+        if (previous != null && previous != current) {
             wipeAll()
             accountChangeOnlyWipers.forEach { it.wipe() }
         }
@@ -87,9 +86,14 @@ class SessionManager(
         wipeAll()
     }
 
-    /** Called by whoever catches [ApiFailure.SessionExpired]; the screen then re-prompts. */
-    suspend fun onSessionExpired() {
-        store.markExpired()
+    /**
+     * Called by whoever catches [ApiFailure.SessionExpired], with the session id that call used.
+     * Only the stored session can be expired by it: a view model that outlived its sign-out and
+     * still holds an old sid must not sign the new session out (decision 003, amended
+     * 2026-09-03).
+     */
+    suspend fun onSessionExpired(sid: String) {
+        store.markExpired(sid)
     }
 
     // The thumbnail cache is deliberately not wiped here: a same-account sign-out keeps it.

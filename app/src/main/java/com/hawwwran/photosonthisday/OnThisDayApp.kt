@@ -5,8 +5,6 @@ import android.content.Context
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
-import coil3.network.okhttp.OkHttpNetworkFetcherFactory
-import coil3.request.crossfade
 import androidx.room.Room
 import com.hawwwran.photosonthisday.api.AuthApi
 import com.hawwwran.photosonthisday.api.FolderApi
@@ -19,6 +17,7 @@ import com.hawwwran.photosonthisday.data.ImageSaver
 import com.hawwwran.photosonthisday.data.MediaSharer
 import com.hawwwran.photosonthisday.data.RoomDayIndexStore
 import com.hawwwran.photosonthisday.data.ThumbnailCacheWiper
+import com.hawwwran.photosonthisday.data.buildImageLoader
 import com.hawwwran.photosonthisday.likes.FileStationClient
 import com.hawwwran.photosonthisday.likes.LikeRepository
 import com.hawwwran.photosonthisday.likes.LikesNasStore
@@ -46,16 +45,11 @@ class OnThisDayApp : Application(), SingletonImageLoader.Factory {
     }
 
     /**
-     * One image loader for the app, fetching over the same OkHttp client as the API so the TLS
-     * and no-cleartext rules hold for images too. Thumbnails are cached by a session-independent
-     * key (see [com.hawwwran.photosonthisday.api.ThumbnailRef]), so its default disk cache
-     * survives a sign-out.
+     * One image loader for the app; see [buildImageLoader] for the guards around its disk cache.
+     * Thumbnails are cached by a session-independent key
+     * (see [com.hawwwran.photosonthisday.api.ThumbnailRef]), so the disk cache survives a sign-out.
      */
-    override fun newImageLoader(context: PlatformContext): ImageLoader =
-        ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { graph.http })) }
-            .crossfade(true)
-            .build()
+    override fun newImageLoader(context: PlatformContext): ImageLoader = buildImageLoader(context, graph.http)
 }
 
 /**
@@ -94,8 +88,8 @@ class AppGraph(context: Context) {
     /** Filled as caches appear; read at wipe time, so registration order is free. */
     val accountDataWipers = mutableListOf<AccountDataWiper>()
 
-    /** Cleared only when the account changes, so a same-account sign-out keeps cached images. */
-    private val thumbnailWiper = ThumbnailCacheWiper(context.applicationContext)
+    /** Cleared when the account changes and from Settings; a same-account sign-out keeps cached images. */
+    val thumbnailWiper = ThumbnailCacheWiper(context.applicationContext)
 
     val imageSaver = ImageSaver(context.applicationContext, http)
     val mediaSharer = MediaSharer(context.applicationContext, http)
@@ -107,7 +101,7 @@ class AppGraph(context: Context) {
         timelineApi = timelineApi,
         itemApi = itemApi,
         today = { currentMonthDay() },
-        onSessionExpired = { sessions.onSessionExpired() },
+        onSessionExpired = { sid -> sessions.onSessionExpired(sid) },
     ).also { accountDataWipers += it }
 
     private val fileStationClient = FileStationClient(http)
@@ -117,6 +111,6 @@ class AppGraph(context: Context) {
         dao = database.likeDao(),
         nas = likesNasStore,
         folder = { sessionStore.likesFolder().first() },
-        onSessionExpired = { sessions.onSessionExpired() },
+        onSessionExpired = { sid -> sessions.onSessionExpired(sid) },
     ).also { accountDataWipers += it }
 }

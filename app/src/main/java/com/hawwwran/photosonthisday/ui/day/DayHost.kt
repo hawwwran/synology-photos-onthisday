@@ -17,12 +17,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.time.LocalDate
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import coil3.SingletonImageLoader
 import com.hawwwran.photosonthisday.AppGraph
 import com.hawwwran.photosonthisday.R
 import com.hawwwran.photosonthisday.core.currentMonthDay
@@ -31,9 +32,7 @@ import com.hawwwran.photosonthisday.data.SaveResult
 import com.hawwwran.photosonthisday.data.ShareResult
 import com.hawwwran.photosonthisday.session.Session
 import com.hawwwran.photosonthisday.session.SessionStore
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /** Which of the signed-in screens is showing. Reset to the grid on any account change (new host). */
 private sealed interface DayNav {
@@ -45,13 +44,20 @@ private sealed interface DayNav {
 /**
  * Holds the one [DayViewModel] and the navigation between the day grid, the fullscreen viewer and
  * settings. A three-screen flow, so a small in-memory nav state rather than a NavHost.
+ *
+ * The view model lives exactly as long as this composable does, in a store this composable owns.
+ * In the Activity's store it survived sign-out: the old instance kept observing the index, saw
+ * the new session's first write, fetched with its dead sid, and signed the new session out on
+ * DSM's 119 (plan 007). A view model tied to one [session] must die with it.
  */
 @Composable
 fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val storeOwner = remember(session) { DayViewModelStoreOwner() }
+    DisposableEffect(storeOwner) { onDispose { storeOwner.viewModelStore.clear() } }
     val viewModel: DayViewModel = viewModel(
-        key = "day-${session.credentials.sid}",
+        viewModelStoreOwner = storeOwner,
         factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, graph.likes, session, currentMonthDay(), graph.sessionStore.likedByYear()) } },
     )
     val auth = ThumbnailAuth(session.baseUrl, session.credentials.sid, session.credentials.synotoken)
@@ -199,18 +205,17 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 onLikesFolderChange = { path -> scope.launch { graph.sessionStore.setLikesFolder(path) } },
                 likedByYear = likedByYear,
                 onLikedByYearChange = { value -> scope.launch { graph.sessionStore.setLikedByYear(value) } },
-                onClearCache = {
-                    withContext(Dispatchers.IO) {
-                        val loader = SingletonImageLoader.get(context)
-                        loader.memoryCache?.clear()
-                        loader.diskCache?.clear()
-                    }
-                },
+                onClearCache = { graph.thumbnailWiper.wipe() },
                 onBack = { nav = DayNav.Grid },
                 onSignOut = onSignOut,
             )
         }
     }
+}
+
+/** One [ViewModelStore] per signed-in session, cleared when [DayHost] leaves the composition. */
+private class DayViewModelStoreOwner : ViewModelStoreOwner {
+    override val viewModelStore = ViewModelStore()
 }
 
 /** A shared mime for a multi-share: image or video when uniform, otherwise a wildcard. */

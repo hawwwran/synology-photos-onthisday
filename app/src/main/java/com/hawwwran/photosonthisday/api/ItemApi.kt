@@ -3,9 +3,8 @@ package com.hawwwran.photosonthisday.api
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 
 /**
@@ -17,8 +16,8 @@ class ItemApi(
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
     suspend fun count(baseUrl: HttpUrl, space: Space, credentials: SessionCredentials): Int {
-        val data = client.call(baseUrl, Allowlist.itemCount(space), credentials = credentials)
-        return data.jsonObject["count"]?.jsonPrimitive?.intOrNull
+        val data = client.callObject(baseUrl, Allowlist.itemCount(space), credentials = credentials)
+        return (data["count"] as? JsonPrimitive)?.intOrNull
             ?: throw ApiFailure.Malformed(Allowlist.itemCount(space), "count response has no count")
     }
 

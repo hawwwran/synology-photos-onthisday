@@ -1,7 +1,8 @@
 package com.hawwwran.photosonthisday.api
 
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import okhttp3.HttpUrl
 
 /**
@@ -17,8 +18,9 @@ class FolderApi(private val client: SynologyClient) {
         if (folderId <= 0) return null
         val call = Allowlist.folderGet(space)
         return try {
-            val data = client.call(baseUrl, call, mapOf("id" to folderId.toString()), credentials)
-            data.jsonObject["folder"]?.jsonObject?.get("name")?.jsonPrimitive?.content
+            val data = client.callObject(baseUrl, call, mapOf("id" to folderId.toString()), credentials)
+            // Safe casts, not `.jsonObject`: a surprising shape here must omit the path, not crash the sheet.
+            ((data["folder"] as? JsonObject)?.get("name") as? JsonPrimitive)?.contentOrNull
         } catch (e: ApiFailure) {
             null // the info sheet simply omits the path; the failure is already logged by call name and code
         }

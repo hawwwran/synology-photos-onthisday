@@ -48,6 +48,12 @@ The trusted-device id may survive, since it belongs to the device rather than to
   section is written for. The day histogram and item rows are still cleared on sign-out as
   before. `SessionManager` splits this into two wiper groups: one for the index (sign-out and
   account change) and one for the thumbnail cache (account change only).
+- 2026-09-03, plan 007: **account identity is the base URL and the account name together.**
+  The change detector compared the account name alone, so the same user name on a different NAS
+  skipped the wipe and showed the old NAS's histogram, item rows, likes and thumbnails under the
+  new NAS's ids until a refresh overwrote them. The stored base URL (as normalised by
+  `parseBaseUrl`) is now part of the comparison; a different scheme, host, port or path is a
+  different account and wipes.
 
 ## Related
 

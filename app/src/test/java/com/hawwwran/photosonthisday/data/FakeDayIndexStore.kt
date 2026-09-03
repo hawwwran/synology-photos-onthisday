@@ -15,15 +15,27 @@ class FakeDayIndexStore : DayIndexStore {
     var clears = 0
         private set
 
+    /** How many times [replaceBuckets] ran, so a test can assert one write per refresh. */
+    var bucketWrites = 0
+        private set
+
     override fun buckets(): Flow<List<NamespacedDayBucket>> = buckets
     override fun refreshedAt(): Flow<Long?> = refreshedAt
 
-    override suspend fun replace(space: Space, days: List<DayBucket>) {
-        buckets.value = buckets.value.filterNot { it.space == space } +
-            days.map { NamespacedDayBucket(space, it) }
+    override suspend fun replaceBuckets(byNamespace: Map<Space, List<DayBucket>>, refreshedAt: Long?) {
+        bucketWrites++
+        buckets.value = buckets.value.filterNot { it.space in byNamespace } +
+            byNamespace.flatMap { (space, days) -> days.map { NamespacedDayBucket(space, it) } }
+        if (refreshedAt != null) this.refreshedAt.value = refreshedAt
     }
 
-    override suspend fun setRefreshedAt(epochMillis: Long) {
+    /** Test setup: seed one namespace without counting it as a write. */
+    fun seed(space: Space, days: List<DayBucket>) {
+        buckets.value = buckets.value.filterNot { it.space == space } + days.map { NamespacedDayBucket(space, it) }
+    }
+
+    /** Test setup: pretend the index was refreshed at [epochMillis]. */
+    fun seedRefreshedAt(epochMillis: Long) {
         refreshedAt.value = epochMillis
     }
 

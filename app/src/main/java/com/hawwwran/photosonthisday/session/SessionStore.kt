@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.map
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
+/** What makes an account the same account across sign-ins: the NAS it lives on and its name. */
+data class AccountIdentity(val baseUrl: String, val account: String)
+
 /** A signed-in account: where, who, and what proves it. */
 data class Session(
     val baseUrl: HttpUrl,
@@ -65,8 +68,17 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
 
     suspend fun current(): Session? = (state.first() as? SessionState.SignedIn)?.session
 
-    /** The account last signed in, kept after sign-out so a change of account can be detected. */
-    suspend fun lastAccount(): String? = dataStore.data.first()[ACCOUNT]
+    /**
+     * Who was signed in last, kept after sign-out so a change of account can be detected. The
+     * identity is the base URL and the account name together (decision 006, amended 2026-09-03):
+     * the same user name on another NAS is another account with other photos.
+     */
+    suspend fun lastIdentity(): AccountIdentity? {
+        val prefs = dataStore.data.first()
+        val baseUrl = prefs[BASE_URL] ?: return null
+        val account = prefs[ACCOUNT] ?: return null
+        return AccountIdentity(baseUrl, account)
+    }
 
     /** Survives sign-out and account changes: it belongs to the device, not the account. */
     suspend fun deviceId(): String? = dataStore.data.first()[DEVICE_ID]
@@ -100,9 +112,14 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
-    /** DSM ended the session: drop what proved it, remember that it happened. */
-    suspend fun markExpired() {
+    /**
+     * DSM ended the session [sid]: drop what proved it, remember that it happened. A [sid] that
+     * is not the stored one is ignored, atomically with the read: an expiry can only sign out
+     * the session that saw it, never a newer one (decision 003, amended 2026-09-03).
+     */
+    suspend fun markExpired(sid: String) {
         dataStore.edit { prefs ->
+            if (prefs[SID] != sid) return@edit
             prefs.remove(SID)
             prefs.remove(SYNOTOKEN)
             prefs[EXPIRED] = true

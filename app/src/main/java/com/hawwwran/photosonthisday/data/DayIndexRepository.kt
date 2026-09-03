@@ -13,6 +13,9 @@ import com.hawwwran.photosonthisday.core.dayRangeUtc
 import com.hawwwran.photosonthisday.core.selectDay
 import com.hawwwran.photosonthisday.session.AccountDataWiper
 import com.hawwwran.photosonthisday.session.Session
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -36,7 +39,7 @@ sealed interface RefreshResult {
 }
 
 /** The stored histogram, merged across namespaces, and when it was last refreshed (null if never). */
-data class DayIndexData(val days: List<com.hawwwran.photosonthisday.core.DayBucket>, val refreshedAt: Long?)
+data class DayIndexData(val days: List<DayBucket>, val refreshedAt: Long?)
 
 /**
  * The day index: cache first, network after (decision 005). Selection runs on the stored
@@ -50,8 +53,8 @@ class DayIndexRepository(
     private val itemApi: ItemApi,
     private val today: () -> MonthDay,
     private val now: () -> Long = System::currentTimeMillis,
-    /** Called when a refresh meets a dead session, so the app re-prompts (closes plan 002's last box). */
-    private val onSessionExpired: suspend () -> Unit = {},
+    /** Called with the sid that met a dead session, so the app re-prompts for that session only. */
+    private val onSessionExpired: suspend (sid: String) -> Unit = {},
     private val staleAfterMillis: Long = DEFAULT_STALE_AFTER,
 ) : AccountDataWiper {
 
@@ -109,11 +112,11 @@ class DayIndexRepository(
             val expected = expectedCount(year, monthDay)
             if (expected != null && expected != total) {
                 IndexLog.dayCountMismatch(year, monthDay, total, expected)
-                store.setRefreshedAt(0L) // schedule a histogram refresh on the next open
+                store.replaceBuckets(emptyMap(), refreshedAt = 0L) // schedule a histogram refresh on the next open
             }
             return RefreshResult.Success
         } catch (e: ApiFailure.SessionExpired) {
-            onSessionExpired()
+            onSessionExpired(session.credentials.sid)
             return RefreshResult.SessionExpired
         } catch (e: ApiFailure) {
             return RefreshResult.Failed(DsmErrorText.forFailure(e))
@@ -126,27 +129,42 @@ class DayIndexRepository(
     }
 
     /**
-     * Fetch both namespaces and replace the stored index. The item count is fetched too and
-     * compared with the flattened total: a mismatch is logged, not fatal, and does not block the
-     * refresh, because the histogram is still the best answer available.
+     * Fetch both namespaces at once and replace the stored index in one write. The item count is
+     * fetched too and compared with the flattened total: a mismatch is logged, not fatal, because
+     * the histogram is still the best answer available.
+     *
+     * One namespace failing does not lose the other. A DSM error is a deterministic answer (105 for
+     * a space this account may not read), so the index is stamped and shown; a transport or shape
+     * failure leaves the stamp alone so the next open tries again. A dead session stops everything
+     * and re-prompts.
      */
-    suspend fun refresh(session: Session): RefreshResult {
-        try {
-            for (space in Space.entries) {
-                val days = timelineApi.fetch(session.baseUrl, space, session.credentials)
-                val reported = itemApi.count(session.baseUrl, space, session.credentials)
-                val summed = days.sumOf { it.itemCount }
-                if (summed != reported) IndexLog.countMismatch(space, summed, reported)
-                store.replace(space, days)
-            }
-            store.setRefreshedAt(now())
-            return RefreshResult.Success
-        } catch (e: ApiFailure.SessionExpired) {
-            onSessionExpired()
-            return RefreshResult.SessionExpired
-        } catch (e: ApiFailure) {
-            return RefreshResult.Failed(DsmErrorText.forFailure(e))
+    suspend fun refresh(session: Session): RefreshResult = coroutineScope {
+        val outcomes = Space.entries.map { space -> async { fetchHistogram(session, space) } }.awaitAll()
+        val failures = outcomes.filterIsInstance<HistogramOutcome.Failed>().map { it.failure }
+        if (failures.any { it is ApiFailure.SessionExpired }) {
+            onSessionExpired(session.credentials.sid)
+            return@coroutineScope RefreshResult.SessionExpired
         }
+        val fetched = outcomes.filterIsInstance<HistogramOutcome.Fetched>().associate { it.space to it.days }
+        val stamp = fetched.isNotEmpty() && failures.all { it is ApiFailure.DsmError }
+        store.replaceBuckets(fetched, refreshedAt = if (stamp) now() else null)
+        failures.firstOrNull()?.let { return@coroutineScope RefreshResult.Failed(DsmErrorText.forFailure(it)) }
+        RefreshResult.Success
+    }
+
+    private sealed interface HistogramOutcome {
+        data class Fetched(val space: Space, val days: List<DayBucket>) : HistogramOutcome
+        data class Failed(val failure: ApiFailure) : HistogramOutcome
+    }
+
+    private suspend fun fetchHistogram(session: Session, space: Space): HistogramOutcome = try {
+        val days = timelineApi.fetch(session.baseUrl, space, session.credentials)
+        val reported = itemApi.count(session.baseUrl, space, session.credentials)
+        val summed = days.sumOf { it.itemCount }
+        if (summed != reported) IndexLog.countMismatch(space, summed, reported)
+        HistogramOutcome.Fetched(space, days)
+    } catch (e: ApiFailure) {
+        HistogramOutcome.Failed(e)
     }
 
     /** Decision 006, called by [com.hawwwran.photosonthisday.session.SessionManager] on account change. */

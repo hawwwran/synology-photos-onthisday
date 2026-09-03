@@ -28,9 +28,11 @@ sealed class ApiFailure(message: String, cause: Throwable? = null) : Exception(m
 
     companion object {
         /**
-         * From Synology's Web API guide: 105 insufficient privilege, 106 session timeout,
-         * 107 session replaced by another login, 119 sid not found. All four re-prompt.
+         * From Synology's Web API guide: 106 session timeout, 107 session replaced by another
+         * login, 119 sid not found. All three re-prompt. 105 (insufficient privilege) is not
+         * here: it answers "this account may not do that", the session is fine, and signing the
+         * user out would loop on every refresh (decision 003, amended 2026-09-03).
          */
-        val SESSION_GONE_CODES = setOf(105, 106, 107, 119)
+        val SESSION_GONE_CODES = setOf(106, 107, 119)
     }
 }

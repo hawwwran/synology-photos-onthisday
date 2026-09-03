@@ -116,7 +116,7 @@ class SessionManagerTest {
     fun `the same account signing in again keeps its data`() = runTest {
         enqueue(loginOk("S1"))
         sessions.signIn(server.url("/"), "anna", "pw", null)
-        sessions.onSessionExpired()
+        sessions.onSessionExpired("S1")
         val expired = store.state.first() as SessionState.SignedOut
         assertTrue(expired.expired)
         assertEquals("anna", expired.lastAccount)
@@ -127,6 +127,53 @@ class SessionManagerTest {
         assertTrue(wipes.isEmpty())
         assertTrue("same-account re-login keeps the thumbnail cache", thumbWipes.isEmpty())
         assertEquals("S2", (store.state.first() as SessionState.SignedIn).session.credentials.sid)
+    }
+
+    @Test
+    fun `an expiry seen by an old session leaves the current one signed in`() = runTest {
+        enqueue(loginOk("S1"))
+        sessions.signIn(server.url("/"), "anna", "pw", null)
+        enqueue("""{"success":true}""")
+        sessions.signOut()
+        enqueue(loginOk("S2"))
+        sessions.signIn(server.url("/"), "anna", "pw", null)
+
+        // A stale view model still holding S1 meets DSM 119 and reports it after S2 is live.
+        sessions.onSessionExpired("S1")
+
+        val state = store.state.first() as SessionState.SignedIn
+        assertEquals("S2", state.session.credentials.sid)
+    }
+
+    @Test
+    fun `an expiry seen by the current session signs it out`() = runTest {
+        enqueue(loginOk("S1"))
+        sessions.signIn(server.url("/"), "anna", "pw", null)
+
+        sessions.onSessionExpired("S1")
+
+        val state = store.state.first() as SessionState.SignedOut
+        assertTrue(state.expired)
+    }
+
+    @Test
+    fun `the same account name on another NAS is another account and wipes`() = runTest {
+        enqueue(loginOk("S1"))
+        sessions.signIn(server.url("/"), "anna", "pw", null)
+        enqueue("""{"success":true}""")
+        sessions.signOut()
+        wipes.clear()
+        val otherNas = MockWebServer().also { it.start() }
+        try {
+            otherNas.enqueue(MockResponse.Builder().code(200).body(loginOk("S9")).build())
+
+            sessions.signIn(otherNas.url("/"), "anna", "pw", null)
+
+            assertEquals(listOf("wiped"), wipes)
+            assertEquals(listOf("thumbs"), thumbWipes)
+        } finally {
+            otherNas.close()
+        }
     }
 
     @Test

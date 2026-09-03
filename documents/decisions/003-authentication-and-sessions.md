@@ -52,6 +52,16 @@ for the password again.
   to the DSM web session, and it is not established that a third-party client can obtain a
   Photos-capable session that way. Worth revisiting if it ever can.
 
+## Amendments
+
+- 2026-09-03, plan 007: **an expiry is scoped to the session that saw it.** `onSessionExpired`
+  takes the session id the failing call used, and the store ignores it unless it is the stored
+  one. Before this, a view model that outlived its sign-out could meet DSM 119 with its dead sid
+  and remove whatever sid was stored by then, which was the new login's. **DSM 105 is not an
+  expiry.** It means "insufficient privilege": the session is alive and the account may not make
+  that call. It maps to a plain DSM error with its own text; only 106, 107 and 119 re-prompt.
+  Treating 105 as expiry would sign an account without shared-space access out on every refresh.
+
 ## Related
 
 [[001-web-api-is-the-only-source]], [[005-day-index-on-device]], [[006-one-account-per-install]]

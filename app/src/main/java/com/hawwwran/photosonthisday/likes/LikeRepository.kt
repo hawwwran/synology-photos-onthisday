@@ -27,7 +27,8 @@ class LikeRepository(
     private val nas: LikesNasStore,
     private val folder: suspend () -> String,
     private val now: () -> Long = System::currentTimeMillis,
-    private val onSessionExpired: suspend () -> Unit = {},
+    /** Called with the sid that met a dead session, so only that session is signed out. */
+    private val onSessionExpired: suspend (sid: String) -> Unit = {},
 ) : AccountDataWiper {
 
     /** The keys currently liked, for the like indicator and the liked-first sort. */
@@ -65,7 +66,7 @@ class LikeRepository(
             Log.i("PhotosLikes", "sync ok, ${merged.size} entries")
             SyncResult.Success
         } catch (e: ApiFailure.SessionExpired) {
-            onSessionExpired()
+            onSessionExpired(session.credentials.sid)
             Log.w("PhotosLikes", "sync: session expired")
             SyncResult.SessionExpired
         } catch (e: ApiFailure) {

@@ -1,8 +1,8 @@
 package com.hawwwran.photosonthisday.api
 
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 
 /** What a successful login yields. The password is not here and never was stored anywhere. */
@@ -39,21 +39,21 @@ class AuthApi(private val client: SynologyClient) {
             if (!otpCode.isNullOrBlank()) put("otp_code", otpCode.trim())
             if (!deviceId.isNullOrBlank()) put("device_id", deviceId)
         }
-        val data = client.call(baseUrl, Allowlist.LOGIN, params).jsonObject
-        val sid = data["sid"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() }
-            ?: throw ApiFailure.Malformed(Allowlist.LOGIN, "success without a sid")
+        val data = client.callObject(baseUrl, Allowlist.LOGIN, params)
+        val sid = data.string("sid") ?: throw ApiFailure.Malformed(Allowlist.LOGIN, "success without a sid")
         return LoginResult(
-            credentials = SessionCredentials(
-                sid = sid,
-                synotoken = data["synotoken"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() },
-            ),
-            deviceId = data["device_id"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() },
+            credentials = SessionCredentials(sid = sid, synotoken = data.string("synotoken")),
+            deviceId = data.string("device_id"),
         )
     }
 
     suspend fun logout(baseUrl: HttpUrl, credentials: SessionCredentials) {
         client.call(baseUrl, Allowlist.LOGOUT, credentials = credentials)
     }
+
+    /** A non-empty string field, or null when absent, empty, or not a primitive. Never throws. */
+    private fun JsonObject.string(key: String): String? =
+        (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotEmpty() }
 
     companion object {
         /** Shows up in DSM's connected-devices list, so it should say which app this is. */

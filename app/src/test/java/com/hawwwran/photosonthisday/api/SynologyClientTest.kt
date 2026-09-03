@@ -62,11 +62,33 @@ class SynologyClientTest {
 
     @Test
     fun `session codes become SessionExpired`() = runTest {
-        for (code in listOf(105, 106, 107, 119)) {
+        for (code in listOf(106, 107, 119)) {
             enqueue("""{"success":false,"error":{"code":$code}}""")
             val failure = assertFailsWith<ApiFailure.SessionExpired> { client.call(server.url("/"), Allowlist.timeline(Space.PERSONAL), credentials = credentials) }
             assertEquals(code, failure.code)
         }
+    }
+
+    /** 105 says "not permitted", not "session gone": signing out on it would loop on every refresh. */
+    @Test
+    fun `insufficient privilege is a DsmError, not an expiry`() = runTest {
+        enqueue("""{"success":false,"error":{"code":105}}""")
+
+        val failure = assertFailsWith<ApiFailure.DsmError> { client.call(server.url("/"), Allowlist.timeline(Space.SHARED), credentials = credentials) }
+
+        assertEquals(105, failure.code)
+    }
+
+    @Test
+    fun `a success whose data is missing or not an object is Malformed for object callers`() = runTest {
+        enqueue("""{"success":true}""")
+        assertFailsWith<ApiFailure.Malformed> { client.callObject(server.url("/"), Allowlist.itemCount(Space.PERSONAL), credentials = credentials) }
+
+        enqueue("""{"success":true,"data":[]}""")
+        assertFailsWith<ApiFailure.Malformed> { client.callObject(server.url("/"), Allowlist.itemCount(Space.PERSONAL), credentials = credentials) }
+
+        enqueue("""{"success":true,"data":{"count":1}}""")
+        assertEquals(1, client.callObject(server.url("/"), Allowlist.itemCount(Space.PERSONAL), credentials = credentials)["count"]?.jsonPrimitive?.intOrNull)
     }
 
     @Test

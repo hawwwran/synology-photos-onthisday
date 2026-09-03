@@ -6,6 +6,7 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
@@ -75,6 +76,19 @@ class SynologyClient(
         }
         return decodeEnvelope(call, body)
     }
+
+    /**
+     * [call], for the methods whose `data` is an object. A success envelope with no `data`, or
+     * with `data` of another shape, is [ApiFailure.Malformed] here rather than a raw cast
+     * exception at the caller, so nothing but an [ApiFailure] leaves the api layer.
+     */
+    suspend fun callObject(
+        baseUrl: HttpUrl,
+        call: ApiCall,
+        params: Map<String, String> = emptyMap(),
+        credentials: SessionCredentials? = null,
+    ): JsonObject = this.call(baseUrl, call, params, credentials) as? JsonObject
+        ?: throw malformed(call, "data is not an object")
 
     private fun decodeEnvelope(call: ApiCall, body: String): JsonElement {
         val root = try {

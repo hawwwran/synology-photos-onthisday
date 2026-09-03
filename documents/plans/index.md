@@ -11,7 +11,7 @@ dependency column is.
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
 | [005](005-viewer-and-hardening.md) | Viewer, download, hardening | 10/11 (release build waits on keystore) | 004 | 10 / 11 |
 | [006](006-likes.md) | Liking photos, stored on the NAS | Built, live test pending 2026-09-03 | 005, decision 008 | code complete |
-| [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Not started (code review 2026-09-03) | 005 | 0 / 14 |
+| [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Code done 2026-09-03; device checks pending | 005 | 12 / 14 |
 | [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Not started (code review 2026-09-03) | 005 | 0 / 12 |
 | [009](009-likes-hardening.md) | Likes hardening | Not started (code review 2026-09-03) | 007, 008 | 0 / 13 |
 | [010](010-viewer-save-share-and-update.md) | Viewer, save, share and the update flow | Not started (code review 2026-09-03) | 005 (run after 007) | 0 / 14 |

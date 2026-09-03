@@ -30,11 +30,15 @@ interface DayIndexDao {
     @Query("DELETE FROM item_row WHERE namespace = :namespace AND year = :year AND month = :month AND day = :day")
     suspend fun deleteDayItems(namespace: String, year: Int, month: Int, day: Int)
 
-    /** A namespace's rows are replaced as a unit, so a vanished day leaves no stale row behind. */
+    /**
+     * The named namespaces' rows are replaced as a unit, so a vanished day leaves no stale row
+     * behind, and the refresh stamp lands in the same transaction so observers see one histogram.
+     */
     @Transaction
-    suspend fun replaceNamespace(namespace: String, rows: List<DayBucketEntity>) {
-        deleteNamespace(namespace)
+    suspend fun replaceBuckets(namespaces: List<String>, rows: List<DayBucketEntity>, meta: IndexMetaEntity?) {
+        namespaces.forEach { deleteNamespace(it) }
         insert(rows)
+        if (meta != null) setMeta(meta)
     }
 
     @Insert

@@ -118,9 +118,12 @@ DSM's error codes for `SYNO.API.Auth`, from Synology's published Web API guide r
 this run, which saw none: 400 wrong account or password, 401 account disabled, 402 permission
 denied, 403 two-factor code required, 404 wrong two-factor code, 406 two-factor enforced, 407
 address blocked by auto-block, 409 password expired, 410 password must be changed. Common codes
-that mean "the session is gone" and should re-prompt: 105 insufficient privilege, 106 session
-timeout, 107 session replaced by another login, 119 sid not found. Treat this list as the
-mapping's starting point and let the app show the raw code alongside the plain-language text.
+that mean "the session is gone" and should re-prompt: 106 session timeout, 107 session replaced
+by another login, 119 sid not found. 105 (insufficient privilege) is **not** one of them: the
+session is alive, the account may not make that call, and the app shows it as a permission
+error (decision 003, amended 2026-09-03; an earlier revision of this paragraph listed it with the
+expiry codes). Treat this list as the mapping's starting point and let the app show the raw code
+alongside the plain-language text.
 
 ## U2. The timeline
 
@@ -240,6 +243,9 @@ Serves `image/jpeg` bytes for `size=sm`, `m` and `xl`. For one 3000x4000 photo: 
 39.1 KB and 318 KB. Without the header the same URL returns `application/json`, a 38-byte error
 envelope, with HTTP 200, so an image loader that ignores the content type would cache an error
 document as a picture: Coil's fetcher must treat a non-image content type as a failure.
+Implemented 2026-09-03 (plan 007): an OkHttp interceptor on the image loader's client fails any
+2xx whose `Content-Type` is not `image/*` before Coil's disk cache sees it, and a Coil interceptor
+evicts the cache entry of any request that ends in an error.
 
 The namespace has to match the item: a shared-space item is fetched from
 `SYNO.FotoTeam.Thumbnail`. The disk cache key is unit id plus size, never the URL, because the

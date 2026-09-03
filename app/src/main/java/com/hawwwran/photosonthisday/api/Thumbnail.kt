@@ -17,11 +17,22 @@ data class ThumbnailRef(
     val size: ThumbnailSize,
 ) {
     /**
-     * The disk- and memory-cache key. Deliberately not the URL: the URL carries `_sid`, so a new
-     * session would otherwise invalidate every cached thumbnail (plan.md §7, plan 004 acceptance).
+     * The disk- and memory-cache key. Deliberately not the URL, which names the NAS: the key must
+     * survive a sign-out and a new session (plan.md §7, plan 004 acceptance). `cacheKey` is in it
+     * because Photos changes it when a photo is edited, and the old rendition must not be shown
+     * forever. Unit ids are unique across the two namespaces (one `unit` table in the library).
      */
-    val cacheId: String get() = "$unitId-${size.param}"
+    val cacheId: String get() = "$unitId-$cacheKey-${size.param}"
 }
+
+/**
+ * Whether a thumbnail GET may be decoded and cached. Photos answers a request with a missing or
+ * stale token as HTTP 200 with a JSON error envelope (research U4); an image loader that keyed
+ * on the status alone would cache that envelope as the picture and serve it from disk forever.
+ * Pure, so the rule is tested without a loader.
+ */
+fun acceptsImageResponse(statusCode: Int, contentType: String?): Boolean =
+    statusCode in 200..299 && contentType.orEmpty().substringBefore(';').trim().startsWith("image/", ignoreCase = true)
 
 /**
  * Builds the thumbnail GET. It serves bytes only with the `X-SYNO-TOKEN` header attached and the

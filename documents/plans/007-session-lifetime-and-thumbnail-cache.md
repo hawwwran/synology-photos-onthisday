@@ -1,6 +1,7 @@
 # 007 - Session lifetime and the thumbnail cache
 
-- **Status:** Not started. Written from the whole-project code review of 2026-09-03.
+- **Status:** Code done 2026-09-03; the three device checks wait for the Vivo (no device attached
+  in the executing session).
 - **Source:** code review 2026-09-03: findings 1, 4, 8, 12, 16, and the wiper-on-main finding.
 - **Depends on:** 005 (the code it fixes). Independent of 008-010; run it first, it holds the
   two most severe findings.
@@ -9,7 +10,7 @@
   scoped to the session that saw it; DSM 105 is a permission answer, not an expiry),
   [006](../decisions/006-one-account-per-install.md) (amend: account identity is host plus
   account name).
-- **Progress:** 0 / 14
+- **Progress:** 12 / 14
 
 ## Goal
 
@@ -138,64 +139,79 @@ table for the whole library.
 
 ### 1. Expiry is scoped to a session
 
-- [ ] `SessionManager.onSessionExpired(sid)` ignores a sid that is not the stored one; `SessionStore`
-      gains whatever read it needs. `DayIndexRepository` and `LikeRepository` pass the sid of the
-      session they used. Unit test in `SessionManagerTest`: expiry for an old sid leaves the current
-      session untouched; expiry for the current sid marks it expired.
-- [ ] `DayHost` owns its view model's lifetime: a `ViewModelStoreOwner` created and cleared with the
-      composable, fixed key. Verify by reading: no `viewModel(key = "day-$sid")` remains anywhere.
+- [x] `SessionManager.onSessionExpired(sid)` ignores a sid that is not the stored one;
+      `SessionStore.markExpired(sid)` does the compare inside the same `edit`, so it is atomic.
+      `DayIndexRepository` and `LikeRepository` pass `session.credentials.sid`. `SessionManagerTest`:
+      "an expiry seen by an old session leaves the current one signed in" and "an expiry seen by the
+      current session signs it out".
+- [x] `DayHost` owns its view model's lifetime: a private `DayViewModelStoreOwner` remembered per
+      `session`, cleared in `DisposableEffect.onDispose`, passed to `viewModel(viewModelStoreOwner =)`.
+      `git grep 'key = "day-'` returns nothing.
 - [ ] Device check: sign out, sign in as the same account, wait for the grid; no expiry bounce.
       Then, with a second household account if available, sign out and in as the other account; the
       grid never shows the first account's photos and no expiry bounce.
+      > Blocked: no device attached in the executing session (only an offline emulator).
 
 ### 2. Thumbnail bytes are images or nothing
 
-- [ ] A content-type guard in the image loader: a response whose type is not `image/*` fails before
-      the disk cache sees it. Unit-testable if written as a plain function over
-      `(statusCode, contentType) -> accept`; wire it into a Coil interceptor or fetcher wrapper.
-- [ ] On decode failure, remove the key from Coil's memory and disk caches (belt to the braces).
+- [x] `acceptsImageResponse(statusCode, contentType)` in `api/Thumbnail.kt` is the rule;
+      `data/ImageLoading.kt` wires it as an OkHttp interceptor (`ImageResponseGuard`) on the image
+      loader's client, so it holds for the grid and the viewer alike. `ImageLoadingTest`: the U4
+      envelope fails the call, an image passes.
+- [x] `FailedDecodePurge`, a Coil interceptor in the same file, evicts the request's disk and memory
+      entries on any `ErrorResult`. This is also what heals a cache poisoned by v1.0.0.
 - [ ] Device check: with a fresh index (under 12 h), invalidate the session on the NAS side (sign the
       same account in from a browser so DSM answers 107, or sign out of DSM there), then open the app
       so the grid requests thumbnails with the dead sid; after the forced re-login no cell may stay
       grey. Note the steps and outcome in this plan.
+      > Blocked: no device attached in the executing session.
 
 ### 3. Account identity is host plus account
 
-- [ ] `SessionStore` records the host with the account; `SessionManager.signIn` wipes when either
-      differs. Unit test: same account, different host, wipes; same both, does not.
-- [ ] Amend decision 006 (dated line under `## Amendments`): identity is `(host, account)`.
+- [x] `SessionStore.lastIdentity()` returns `AccountIdentity(baseUrl, account)`; `signIn` compares
+      both. `SessionManagerTest`: "the same account name on another NAS is another account and
+      wipes"; the existing same-account test still passes with no wipe.
+- [x] Decision 006 amended (2026-09-03): identity is the stored base URL plus the account name.
 
 ### 4. 105 is a permission error
 
-- [ ] Remove 105 from `SESSION_GONE_CODES`; delete the login special case; `HardeningTest` or
-      `SynologyClientTest` asserts 105 yields `DsmError`, 106/107/119 yield `SessionExpired`.
-- [ ] `DayIndexRepository.refresh` continues with the other namespace when one namespace fails with a
-      `DsmError`, and returns `Failed` with that text. Test with `FakeDayIndexStore`.
-- [ ] Amend decision 003 (dated line) and fix `documents/research/photos-web-api.md:120-122`.
+- [x] 105 removed from `SESSION_GONE_CODES`; the login special case is gone. `SynologyClientTest`:
+      "insufficient privilege is a DsmError, not an expiry"; the session-codes test now lists 106,
+      107, 119.
+- [x] `refresh()` fetches both namespaces concurrently and writes whatever arrived in one
+      `replaceBuckets`. A `DsmError` on one namespace keeps the other, stamps the index and returns
+      `Failed` with that text; a transport or shape failure keeps the other but leaves the stamp
+      alone so the next open retries; a dead session writes nothing. Three
+      `DayIndexRepositoryTest` cases. Tests route MockWebServer by call (`RoutedPhotosServer`),
+      because the two namespaces are now in flight at once.
+- [x] Decision 003 amended (2026-09-03); the research paragraph on re-prompt codes corrected.
 
 ### 5. Envelope `data` shape
 
-- [ ] `callObject` (or equivalent) maps non-object `data` to `Malformed`; `AuthApi`, `ItemApi.count`,
-      `FolderApi.path` use it; `FolderApi.path` returns null on any `ApiFailure`. `SynologyClientTest`
-      gains a `{"success":true}` case and a `{"success":true,"data":[]}` case.
+- [x] `SynologyClient.callObject` maps non-object `data` to `Malformed`; `AuthApi`, `ItemApi.count`
+      and `FolderApi.path` use it, and the inner reads are safe casts, so no cast exception can
+      leave the api layer. `SynologyClientTest` covers `{"success":true}` and
+      `{"success":true,"data":[]}`.
 
 ### 6. Wiper and cache key
 
-- [ ] `ThumbnailCacheWiper.wipe()` runs on IO; `AppGraph.thumbnailWiper` is public; `DayHost`'s
-      Settings `onClearCache` calls it and the inline copy is deleted.
-- [ ] `ThumbnailRef.cacheId` includes `cacheKey`; fix the KDoc at `api/Thumbnail.kt:19-22`, which
-      still says the URL carries `_sid` (it uses a cookie).
+- [x] `ThumbnailCacheWiper.wipe()` runs under `withContext(Dispatchers.IO)`; `AppGraph.thumbnailWiper`
+      is public and Settings > Clear cache calls it; the inline copy in `DayHost` is gone.
+- [x] `cacheId` is `unitId-cacheKey-size`; the KDoc says why and no longer mentions `_sid`. Note
+      for the next install: every v1.0.0 thumbnail is re-fetched once, which also discards any
+      cached error envelope.
 
 ## Acceptance criteria
 
 - [ ] Sign out and sign in as the same account, on a day with shared-space photos: no expiry bounce,
       grid loads. Verified on the Vivo.
+      > Blocked: no device attached in the executing session.
 - [ ] A session expired on the NAS side, then re-login: no permanently grey cells.
-- [ ] `./gradlew testDebugUnitTest` green; new tests listed above exist and pass.
-- [ ] Decisions 003 and 006 carry dated amendment lines; `decisions/index.md` summaries updated.
+      > Blocked: no device attached in the executing session.
+- [x] `./gradlew testDebugUnitTest` green: 74 tests (64 before), the ones named above included.
+- [x] Decisions 003 and 006 carry dated amendment lines; `decisions/index.md` summaries updated.
 
 ## On completion
-
 
 1. Tick as verified, keep `Progress:` in step in the same commit.
 2. Update `index.md`.

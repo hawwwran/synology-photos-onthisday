@@ -19,12 +19,12 @@ class RoomDayIndexStore(private val dao: DayIndexDao) : DayIndexStore {
 
     override fun refreshedAt(): Flow<Long?> = dao.refreshedAt()
 
-    override suspend fun replace(space: Space, days: List<DayBucket>) {
-        dao.replaceNamespace(space.name, days.map { toEntity(space, it) })
-    }
-
-    override suspend fun setRefreshedAt(epochMillis: Long) {
-        dao.setMeta(IndexMetaEntity(refreshedAt = epochMillis))
+    override suspend fun replaceBuckets(byNamespace: Map<Space, List<DayBucket>>, refreshedAt: Long?) {
+        dao.replaceBuckets(
+            namespaces = byNamespace.keys.map { it.name },
+            rows = byNamespace.flatMap { (space, days) -> days.map { toEntity(space, it) } },
+            meta = refreshedAt?.let { IndexMetaEntity(refreshedAt = it) },
+        )
     }
 
     override fun items(year: Int, monthDay: MonthDay): Flow<List<PhotoItem>> =
