@@ -78,6 +78,13 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[LIKES_FOLDER] = path.trim().trimEnd('/').ifEmpty { DEFAULT_LIKES_FOLDER } }
     }
 
+    /** True: liked photos in one group at the top. False (default): liked kept first within each year. */
+    fun mergeLiked(): Flow<Boolean> = dataStore.data.map { it[MERGE_LIKED] ?: false }
+
+    suspend fun setMergeLiked(value: Boolean) {
+        dataStore.edit { it[MERGE_LIKED] = value }
+    }
+
     suspend fun save(session: Session, deviceId: String?) {
         dataStore.edit { prefs ->
             prefs[BASE_URL] = session.baseUrl.toString()
@@ -116,5 +123,6 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
         private val DEVICE_ID = stringPreferencesKey("device_id")
         private val EXPIRED = booleanPreferencesKey("expired")
         private val LIKES_FOLDER = stringPreferencesKey("likes_folder")
+        private val MERGE_LIKED = booleanPreferencesKey("merge_liked")
     }
 }

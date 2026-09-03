@@ -199,7 +199,7 @@ fun DayScreen(
 @OptIn(ExperimentalFoundationApi::class)
 private fun DayGrid(
     shown: DayViewState.Shown,
-    display: DayDisplay,
+    display: List<DaySection>,
     auth: ThumbnailAuth,
     likedKeys: Set<String>,
     selected: Set<String>,
@@ -227,34 +227,21 @@ private fun DayGrid(
             }
         }
 
-        // Running index across every group, matching DayViewModel.viewerSnapshot order.
+        // Running index across every section, matching DayViewModel.viewerSnapshot order.
         var index = 0
-
-        if (display.liked.isNotEmpty()) {
+        display.forEach { section ->
+            val header = section.header
+            val groupKey = when (header) {
+                DaySectionHeader.Liked -> "liked"
+                is DaySectionHeader.Year -> "y${header.year}"
+            }
             fullWidth {
                 Column(Modifier.padding(top = 12.dp, bottom = 4.dp)) {
-                    Text(stringResource(R.string.liked_header), style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        pluralStringResource(R.plurals.day_photo_count, display.liked.size, display.liked.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            val start = index
-            itemsIndexed(
-                items = display.liked,
-                key = { _, entry -> "liked:${entry.item.space.name}:${entry.item.id}" },
-            ) { localIndex, entry ->
-                PhotoCell(entry.item, auth, likedKeys, selected, viewModel, onOpenPhoto, start + localIndex)
-            }
-            index += display.liked.size
-        }
-
-        display.years.forEach { section ->
-            fullWidth {
-                Column(Modifier.padding(top = 12.dp, bottom = 4.dp)) {
-                    Text("${section.year}", style = MaterialTheme.typography.titleMedium)
+                    val title = when (header) {
+                        DaySectionHeader.Liked -> stringResource(R.string.liked_header)
+                        is DaySectionHeader.Year -> header.year.toString()
+                    }
+                    Text(title, style = MaterialTheme.typography.titleMedium)
                     Text(
                         pluralStringResource(R.plurals.day_photo_count, section.items.size, section.items.size),
                         style = MaterialTheme.typography.bodySmall,
@@ -277,7 +264,7 @@ private fun DayGrid(
             val start = index
             itemsIndexed(
                 items = section.items,
-                key = { _, item -> "${section.year}:${item.space.name}:${item.id}" },
+                key = { _, item -> "$groupKey:${item.space.name}:${item.id}" },
             ) { localIndex, item ->
                 PhotoCell(item, auth, likedKeys, selected, viewModel, onOpenPhoto, start + localIndex)
             }

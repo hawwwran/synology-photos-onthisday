@@ -52,11 +52,12 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
     val scope = rememberCoroutineScope()
     val viewModel: DayViewModel = viewModel(
         key = "day-${session.credentials.sid}",
-        factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, graph.likes, session, currentMonthDay()) } },
+        factory = viewModelFactory { initializer { DayViewModel(graph.dayIndex, graph.likes, session, currentMonthDay(), graph.sessionStore.mergeLiked()) } },
     )
     val auth = ThumbnailAuth(session.baseUrl, session.credentials.sid, session.credentials.synotoken)
     val likedKeys by viewModel.likedKeys.collectAsState()
     val likesFolder by graph.sessionStore.likesFolder().collectAsState(initial = SessionStore.DEFAULT_LIKES_FOLDER)
+    val mergeLiked by graph.sessionStore.mergeLiked().collectAsState(initial = false)
 
     var nav by remember { mutableStateOf<DayNav>(DayNav.Grid) }
     // Hoisted here, so the grid keeps its scroll position while the viewer or settings is on top.
@@ -195,6 +196,8 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 refreshHours = DayIndexRepository.DEFAULT_STALE_AFTER / (60 * 60 * 1000L),
                 likesFolder = likesFolder,
                 onLikesFolderChange = { path -> scope.launch { graph.sessionStore.setLikesFolder(path) } },
+                mergeLiked = mergeLiked,
+                onMergeLikedChange = { value -> scope.launch { graph.sessionStore.setMergeLiked(value) } },
                 onClearCache = {
                     withContext(Dispatchers.IO) {
                         val loader = SingletonImageLoader.get(context)

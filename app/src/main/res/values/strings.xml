@@ -54,4 +54,5 @@
     <string name="settings_clear_cache">Vymazat mezipaměť</string>
     <string name="settings_likes_folder">Složka pro lajky na NAS</string>
     <string name="settings_likes_folder_save">Uložit složku</string>
+    <string name="settings_merge_liked">Oblíbené v jedné skupině nahoře</string>
 </resources>
