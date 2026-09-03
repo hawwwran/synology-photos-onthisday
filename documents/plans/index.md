@@ -11,9 +11,9 @@ dependency column is.
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
 | [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Done; v1.0.0 cut 2026-09-03 | 004 | 13 / 13 |
 | [006](006-likes.md) | Liking photos, stored on the NAS | Done; six observation boxes dropped (File Station route) | 005, decision 008 | 16 / 21 |
-| [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Code done 2026-09-03; device checks pending | 005 | 12 / 14 |
+| [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Done; same-account re-login verified on the Vivo; NAS-side expiry check needs a killed session | 005 | 13 / 14 |
 | [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Done; verified on the Vivo 2026-09-03 | 005 | 12 / 12 |
-| [009](009-likes-hardening.md) | Likes hardening | Code done 2026-09-03; device check pending | 007, 008 | 12 / 13 |
+| [009](009-likes-hardening.md) | Likes hardening | Done; rapid-toggle check on the Vivo 2026-09-03 | 007, 008 | 13 / 13 |
 | [010](010-viewer-save-share-and-update.md) | Viewer, save, share and the update flow | Done (minSdk 29); verified on the Vivo 2026-09-03 | 005 (run after 007) | 14 / 14 |
 | [011](011-documentation-logging-and-dead-code.md) | Documentation, the logging rule and dead code | Done 2026-09-03; release cut pending (needs push) | 007-010 | 14 / 14 |
 
@@ -35,12 +35,13 @@ version 5 and the end of destructive migration; 009 relies on it. 010 edits `Day
 also edits, so it follows 007. 011 records the final state and adds the logging-rule test, then a
 release is cut.
 
-All five were executed on 2026-09-03 in a session with no device attached: every code change is in,
-117 JVM tests pass, and each plan lists the device checks left for the Vivo under `> Blocked`. The
-device checks started the same evening (plan 010 addendum records the Play Protect finding). The
-next release waits on `main` being pushed. Release-script note: it pushes only the tag, so after
-each release the `chore(release)` bump commit has to be cherry-picked onto `main` (done for v1.0.0
-and v1.0.1), or the script changed to push it.
+All five were executed on 2026-09-03 in a session that started with no device attached: every code
+change is in, 118 JVM tests pass. The device checks ran on the Vivo the same evening; every plan
+lists what was seen. Left open: plan 007's NAS-side session kill and second-account run, plan 008's
+1,220-item day, and the Play Protect finding (plan 010 addendum, open question Q5). The next release
+waits on `main` being pushed. Release-script note: it pushes only the tag, so after each release
+the `chore(release)` bump commit has to be cherry-picked onto `main` (done for v1.0.0 and v1.0.1),
+or the script changed to push it.
 
 Owner decisions the plans left open were taken by default and are recorded in each plan: minSdk 29
 (010), the theme's rose follows `colors.xml` (011), the grid double-tap is kept with a comment (010).

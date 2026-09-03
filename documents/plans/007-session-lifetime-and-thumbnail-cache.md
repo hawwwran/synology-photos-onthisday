@@ -1,7 +1,8 @@
 # 007 - Session lifetime and the thumbnail cache
 
-- **Status:** Code done 2026-09-03; the three device checks wait for the Vivo (no device attached
-  in the executing session).
+- **Status:** Done 2026-09-03; the same-account re-login verified on the Vivo the same evening. Two
+  checks remain that need things this session did not have: a second household account, and a
+  session invalidated on the NAS side.
 - **Source:** code review 2026-09-03: findings 1, 4, 8, 12, 16, and the wiper-on-main finding.
 - **Depends on:** 005 (the code it fixes). Independent of 008-010; run it first, it holds the
   two most severe findings.
@@ -10,7 +11,7 @@
   scoped to the session that saw it; DSM 105 is a permission answer, not an expiry),
   [006](../decisions/006-one-account-per-install.md) (amend: account identity is host plus
   account name).
-- **Progress:** 12 / 14
+- **Progress:** 13 / 14
 
 ## Goal
 
@@ -147,10 +148,11 @@ table for the whole library.
 - [x] `DayHost` owns its view model's lifetime: a private `DayViewModelStoreOwner` remembered per
       `session`, cleared in `DisposableEffect.onDispose`, passed to `viewModel(viewModelStoreOwner =)`.
       `git grep 'key = "day-'` returns nothing.
-- [ ] Device check: sign out, sign in as the same account, wait for the grid; no expiry bounce.
-      Then, with a second household account if available, sign out and in as the other account; the
-      grid never shows the first account's photos and no expiry bounce.
-      > Blocked: no device attached in the executing session (only an offline emulator).
+- [x] Device check, same account (20:27-20:30): sign out (address and account kept, no expiry
+      notice), sign in (no two-factor prompt, the device id survived), `login ok`, one
+      `Timeline.get` plus `Item.count` per namespace, day fetches, likes synced, grid stays; no DSM
+      error and no 106/107/119 in the log. The second-account half was not run: no other household
+      account was at hand.
 
 ### 2. Thumbnail bytes are images or nothing
 
@@ -164,7 +166,9 @@ table for the whole library.
       same account in from a browser so DSM answers 107, or sign out of DSM there), then open the app
       so the grid requests thumbnails with the dead sid; after the forced re-login no cell may stay
       grey. Note the steps and outcome in this plan.
-      > Blocked: no device attached in the executing session.
+      > Blocked: needs a session killed on the NAS side (DSM allows several sessions per account, so
+      > a browser login alone does not do it). `ImageLoadingTest` pins the guard; the reinstall of
+      > 2026-09-03 wiped the cache anyway, so no poisoned entry from v1.0.0 is left on the Vivo.
 
 ### 3. Account identity is host plus account
 
@@ -203,11 +207,10 @@ table for the whole library.
 
 ## Acceptance criteria
 
-- [ ] Sign out and sign in as the same account, on a day with shared-space photos: no expiry bounce,
-      grid loads. Verified on the Vivo.
-      > Blocked: no device attached in the executing session.
+- [x] Sign out and sign in as the same account, on a day with shared-space photos: no expiry bounce,
+      grid loads. Verified on the Vivo 2026-09-03 20:30 (3 September has `FotoTeam` items).
 - [ ] A session expired on the NAS side, then re-login: no permanently grey cells.
-      > Blocked: no device attached in the executing session.
+      > Blocked: needs a NAS-side session kill, see task 2.
 - [x] `./gradlew testDebugUnitTest` green: 74 tests (64 before), the ones named above included.
 - [x] Decisions 003 and 006 carry dated amendment lines; `decisions/index.md` summaries updated.
 

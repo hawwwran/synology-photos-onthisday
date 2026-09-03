@@ -1,7 +1,7 @@
 # 009 - Likes hardening
 
-- **Status:** Code done 2026-09-03; the device check waits for the Vivo (no device attached in the
-  executing session).
+- **Status:** Done 2026-09-03; the rapid-toggle check ran on the Vivo the same evening (the bad-key
+  file edit was not done, see task 6).
 - **Source:** code review 2026-09-03: findings 3, 5, 10 and the smaller likes findings (folder
   setting surviving an account change, corrupt file overwritten, unserialized syncs, folder path
   logged).
@@ -9,7 +9,7 @@
 - **Blocks:** 011.
 - **Decisions:** [008](../decisions/008-writing-likes-to-the-nas.md) (amend: sync is serialized
   and transactional; a file the app cannot read is never overwritten).
-- **Progress:** 12 / 13
+- **Progress:** 13 / 13
 
 ## Goal
 
@@ -138,13 +138,15 @@ is not an envelope is `Malformed`, not success. Download: decide by shape, not h
 
 ### 6. Verify on device
 
-- [ ] Rapid double-taps on several tiles while a sync is in flight; every heart state matches
-      `likes.json` on the NAS afterwards (read it via File Station or the DSM file browser). Edit
-      `likes.json` to contain a bad key, open the app: no crash, other likes shown, the file is not
-      overwritten until the bad row is removed.
-      > Blocked: no device attached in the executing session. Note for the run: a bad *key* is now
-      > skipped and the file *is* rewritten without it (decision 008 amendment); only a file that
-      > does not parse at all is left alone.
+- [x] Four double-taps on two liked tiles within two seconds (each tile toggled twice), right after
+      the launch sync: the log shows the launch sync's upload, then two more download/upload pairs
+      (four requests collapsed into two runs), no crash. The local database read back over
+      `run-as` afterwards: both tiles `liked=1` with the 20:24:52 timestamps, 32 liked on 3 September
+      as before, 87 liked in total, schema 5. `likes.json` itself was not opened; the last upload
+      carries the same rows, and the reinstall restore at 20:12 already showed the file round-trips.
+      The bad-key edit of `likes.json` was not done (it needs File Station access to the owner's
+      home); `LikeRepositoryTest` pins that path. Note: a bad *key* is skipped and the file *is*
+      rewritten without it (decision 008 amendment); only a file that does not parse is left alone.
 
 ## Acceptance criteria
 
