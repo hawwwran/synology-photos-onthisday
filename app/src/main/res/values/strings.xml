@@ -43,6 +43,18 @@
     <string name="selection_saved">Uloženo %1$d z %2$d</string>
     <string name="selection_share_failed">Sdílení selhalo.</string>
     <string name="viewer_saved">Uloženo do fotek.</string>
+    <string name="viewer_info">Informace</string>
+    <string name="info_title">Informace</string>
+    <string name="info_taken">Pořízeno</string>
+    <string name="info_kind">Typ</string>
+    <string name="info_kind_photo">Fotka</string>
+    <string name="info_kind_video">Video</string>
+    <string name="info_resolution">Rozlišení</string>
+    <string name="info_size">Velikost</string>
+    <string name="info_filename">Název souboru</string>
+    <string name="info_location">Umístění</string>
+    <string name="info_location_loading">Načítání…</string>
+    <string name="info_close">Zavřít</string>
 
     <string name="settings_title">Nastavení</string>
     <string name="settings_nas">NAS</string>

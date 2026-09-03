@@ -8,6 +8,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,11 +24,14 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -62,6 +66,7 @@ import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import com.hawwwran.photosonthisday.R
 import com.hawwwran.photosonthisday.api.DownloadUrls
+import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.ThumbnailRef
 import com.hawwwran.photosonthisday.api.ThumbnailSize
@@ -72,6 +77,7 @@ import com.hawwwran.photosonthisday.likes.likeKey
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 private const val SEEK_STEP_MS = 15_000L
 
@@ -91,6 +97,7 @@ fun ViewerScreen(
     onBack: () -> Unit,
     onSave: (ViewerItem) -> Unit,
     onShare: (ViewerItem) -> Unit,
+    resolvePath: suspend (PhotoItem) -> String?,
     saving: Boolean,
     sharing: Boolean,
 ) {
@@ -102,8 +109,11 @@ fun ViewerScreen(
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var controlsVisible by remember { mutableStateOf(false) }
+    var infoShown by remember { mutableStateOf(false) }
     val current = items[pagerState.currentPage]
     LaunchedEffect(pagerState.currentPage) { controlsVisible = false }
+
+    if (infoShown) InfoDialog(current.item, resolvePath, onDismiss = { infoShown = false })
 
     val immersive = landscape && current.item.isVideo && !controlsVisible
     ImmersiveSystemBars(immersive)
@@ -140,6 +150,9 @@ fun ViewerScreen(
                     color = Color.White,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
+                IconButton(onClick = { infoShown = true }) {
+                    Icon(Icons.Outlined.Info, contentDescription = stringResource(R.string.viewer_info), tint = Color.White)
+                }
                 val liked = likedKeys.contains(likeKey(current.item.space, current.item.unitId))
                 IconButton(onClick = { onToggleLike(current) }) {
                     Icon(
@@ -336,4 +349,70 @@ private fun fullDate(seconds: Long): String {
     val at = Instant.ofEpochSecond(seconds).atZone(ZoneOffset.UTC)
     val monthDay = MonthDay(at.monthValue, at.dayOfMonth)
     return "${monthDay.czech()} ${at.year} · ${at.format(TIME_FORMAT)}"
+}
+
+/**
+ * The metadata the app already holds for an item: taken date and time, kind, pixel size and
+ * megapixels, byte size and file name. No EXIF (camera, GPS) is fetched; the web API's item
+ * list does not carry it (research). The file name is shown here but, per the read client's
+ * rule, never logged.
+ */
+@Composable
+private fun InfoDialog(item: PhotoItem, resolvePath: suspend (PhotoItem) -> String?, onDismiss: () -> Unit) {
+    // null = still resolving; "" = resolved to nothing (row omitted); else the folder path.
+    var path by remember(item.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(item.id) { path = resolvePath(item) ?: "" }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.info_close)) } },
+        title = { Text(stringResource(R.string.info_title)) },
+        text = {
+            Column {
+                InfoRow(stringResource(R.string.info_taken), fullDate(item.takenTimeSeconds))
+                InfoRow(
+                    stringResource(R.string.info_kind),
+                    stringResource(if (item.isVideo) R.string.info_kind_video else R.string.info_kind_photo),
+                )
+                if (item.width > 0 && item.height > 0) {
+                    InfoRow(stringResource(R.string.info_resolution), resolutionText(item.width, item.height))
+                }
+                if (item.filesize > 0) InfoRow(stringResource(R.string.info_size), humanSize(item.filesize))
+                if (item.filename.isNotBlank()) InfoRow(stringResource(R.string.info_filename), item.filename)
+                val folderPath = path
+                if (folderPath == null) {
+                    InfoRow(stringResource(R.string.info_location), stringResource(R.string.info_location_loading))
+                } else if (folderPath.isNotBlank()) {
+                    InfoRow(stringResource(R.string.info_location), folderPath)
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Column(Modifier.padding(vertical = 4.dp)) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** e.g. "4032 × 3024 (12,2 Mpx)". Megapixels use the device locale's decimal separator. */
+private fun resolutionText(width: Int, height: Int): String {
+    val megapixels = width.toLong() * height.toLong() / 1_000_000.0
+    return "$width × $height (${String.format(Locale.getDefault(), "%.1f", megapixels)} Mpx)"
+}
+
+/** Bytes as KB/MB/GB with one decimal, in the device locale. */
+private fun humanSize(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val units = listOf("KB", "MB", "GB", "TB")
+    var value = bytes.toDouble()
+    var unit = -1
+    while (value >= 1024 && unit < units.lastIndex) {
+        value /= 1024
+        unit++
+    }
+    return "${String.format(Locale.getDefault(), "%.1f", value)} ${units[unit]}"
 }

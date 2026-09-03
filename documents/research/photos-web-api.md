@@ -174,9 +174,9 @@ An item:
 
 ```text
 id              int     equals additional.thumbnail.unit_id on all 200 sampled items
-filename        string  never shown, never logged
-filesize        int     bytes
-folder_id       int
+filename        string  shown in the info sheet; never logged
+filesize        int     bytes; shown in the info sheet
+folder_id       int     resolved to a path by Browse.Folder get (below)
 owner_user_id   int     1 in the personal space, 0 in the shared space, in this sample
 time            int     taken time, epoch seconds (U5)
 indexed_time    int     epoch milliseconds
@@ -192,6 +192,15 @@ additional
 on every one; the app never asks for `preview`. `cache_key` is `<unit_id>_<digits>`. Videos
 carry the same fields as photos, including a ready thumbnail, so plan 004 can show them in the
 grid with a badge without any other call.
+
+### `Browse.Folder` `get`, for an item's path (confirmed live 2026-09-03)
+
+`SYNO.Foto.Browse.Folder` / `SYNO.FotoTeam.Browse.Folder`, method `get`, version 2, one
+parameter `id` = the item's `folder_id`. It answers `{"folder": {"id", "name", "parent", ...}}`
+where **`folder.name` is the folder's full path from the space root** (observed
+`/Moments/Mobile/Mi MIX 2S/DCIM/2020-09-03` in the personal space). The app calls this only to
+show a photo's location in the info sheet, lazily when the sheet opens; it is a read on the
+allowlist. This was verified through the app against the live NAS rather than assumed.
 
 **A time range is honoured, under `start_time` and `end_time`, in epoch seconds.** With the
 window 1000000000..1100000000 (September 2001 to November 2004) both namespaces returned items

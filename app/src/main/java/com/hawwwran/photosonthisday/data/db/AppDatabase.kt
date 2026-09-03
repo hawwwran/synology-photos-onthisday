@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
  * like cache (item_like), whose durable copy is the NAS file (decision 008). The schema is exported to app/schemas and committed, so a future
  * migration has a baseline to diff against.
  */
-@Database(entities = [DayBucketEntity::class, IndexMetaEntity::class, ItemRowEntity::class, LikeEntity::class], version = 2, exportSchema = true)
+@Database(entities = [DayBucketEntity::class, IndexMetaEntity::class, ItemRowEntity::class, LikeEntity::class], version = 4, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dayIndexDao(): DayIndexDao
     abstract fun likeDao(): LikeDao
