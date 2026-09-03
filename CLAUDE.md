@@ -86,10 +86,15 @@ around (54, 54). Three petals warm, one white for the day being shown.
 
 The petal tapers to a point at the centre and rounds off outward. Pointed the other way it
 reads as a spike rather than a flower, which is what the first attempt looked like. Body radius
-14 centred 20dp out puts the outer edge at 34dp, filling the adaptive icon's 72dp safe circle;
-widening it gets the petals clipped on round launchers, and narrowing it opens a dark cross in
-the middle because adjacent petals stop touching. `ui/theme/Theme.kt` uses the same four
-colours.
+14 centred 20dp out puts the outer edge at 34dp; narrowing the body would open a dark cross in
+the middle because adjacent petals stop touching, so the whole flower is instead shrunk by a
+single outer `scaleX/scaleY 0.85` group about (54, 54). That keeps the petals touching each
+other but pulls the outer edge in to ~29dp, off the mask edge, so nothing is clipped on round
+launchers. `ic_launcher_monochrome.xml` carries the same scale.
+
+The adaptive background is a solid `#FF665C` (`drawable/ic_launcher_background.xml`, a filled
+rect, not the `@color` of the same name which the mipmap does not reference). `ui/theme/Theme.kt`
+uses the same four petal colours.
 
 ## Documents protocol
 

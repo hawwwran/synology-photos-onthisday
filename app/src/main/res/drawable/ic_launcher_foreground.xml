@@ -7,29 +7,32 @@
 
     <!-- One petal, four rotations about (54, 54). It tapers to a point at the centre and
          rounds off outward: a petal pointed the other way round reads as a spike, not a
-         flower. Body radius 14 centred 20 out, so the outer edge lands at 34 and the flower
-         fills the adaptive icon's 72dp safe circle exactly. Adjacent petals touch at that
-         radius, which is what keeps the middle from showing a dark cross. -->
+         flower. Body radius 14 centred 20 out, so the outer edge lands at 34; the outer 0.85
+         scale pulls the flower in to ~29 so it no longer touches the mask edge on round
+         launchers, while keeping the petals touching each other (a uniform scale, so no dark
+         cross opens in the middle). -->
 
-    <!-- The up petal is white: one day picked out of the years around it. -->
-    <group android:pivotX="54" android:pivotY="54" android:rotation="0">
-        <path
-            android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
-            android:fillColor="@color/petal_today" />
-    </group>
-    <group android:pivotX="54" android:pivotY="54" android:rotation="90">
-        <path
-            android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
-            android:fillColor="@color/petal_amber" />
-    </group>
-    <group android:pivotX="54" android:pivotY="54" android:rotation="180">
-        <path
-            android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
-            android:fillColor="@color/petal_orange" />
-    </group>
-    <group android:pivotX="54" android:pivotY="54" android:rotation="270">
-        <path
-            android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
-            android:fillColor="@color/petal_rose" />
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.85" android:scaleY="0.85">
+        <!-- The up petal is white: one day picked out of the years around it. -->
+        <group android:pivotX="54" android:pivotY="54" android:rotation="0">
+            <path
+                android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
+                android:fillColor="@color/petal_today" />
+        </group>
+        <group android:pivotX="54" android:pivotY="54" android:rotation="90">
+            <path
+                android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
+                android:fillColor="@color/petal_amber" />
+        </group>
+        <group android:pivotX="54" android:pivotY="54" android:rotation="180">
+            <path
+                android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
+                android:fillColor="@color/petal_orange" />
+        </group>
+        <group android:pivotX="54" android:pivotY="54" android:rotation="270">
+            <path
+                android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
+                android:fillColor="@color/petal_rose" />
+        </group>
     </group>
 </vector>
