@@ -24,10 +24,11 @@
                 android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
                 android:fillColor="@color/petal_amber" />
         </group>
+        <!-- The down petal is turquoise, the one cool note against the three warm petals. -->
         <group android:pivotX="54" android:pivotY="54" android:rotation="180">
             <path
                 android:pathData="M54,54 L64,43.8 A14,14 0 1 0 44,43.8 Z"
-                android:fillColor="@color/petal_orange" />
+                android:fillColor="@color/petal_turquoise" />
         </group>
         <group android:pivotX="54" android:pivotY="54" android:rotation="270">
             <path
