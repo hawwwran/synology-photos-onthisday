@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Night ground, so the one white petal reads as the highlighted day. -->
-    <color name="ic_launcher_background">#1A1628</color>
+    <color name="ic_launcher_background">#FF665C</color>
 
     <color name="petal_today">#FFFFFFFF</color>
     <color name="petal_amber">#FFFFC24A</color>
