@@ -230,11 +230,11 @@ Two things the device session found that the review had not:
   (`com.google.android.gms.settings.VERIFY_APPS_SETTINGS`, falling back to the security settings).
   The lasting fix would be distribution through Google Play or Google's developer verification for
   sideloaded apps; recorded as an open question in `decisions/index.md`.
-- **`main` was behind the published version.** The release script commits the version bump in its
-  own clone and pushes only the tag, so the v1.0.1 bump (versionCode 3) existed only on `v1.0.1`
-  while `main` still said 1.0.0 / 2; the next release would have reused versionCode 3. The tag's
-  commit is cherry-picked onto `main` (`chore(release): v1.0.1`), as `f499168` had done by hand
-  for v1.0.0. The release script should push the bump commit too; noted in the index.
+- **The local checkout was behind the published version.** The release script commits the
+  version bump (`chore(release): v1.0.1`, versionCode 3) in its own clone and pushes it to `main`
+  with the tag; the working copy here had not fetched, so it still said 1.0.0 / 2 and a release cut
+  from it would have reused versionCode 3. Fetched and rebased before pushing; nothing to change in
+  the script. Rule for a session that releases: `git fetch` first.
 
 ## Acceptance criteria
 

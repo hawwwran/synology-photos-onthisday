@@ -39,9 +39,9 @@ All five were executed on 2026-09-03 in a session that started with no device at
 change is in, 118 JVM tests pass. The device checks ran on the Vivo the same evening; every plan
 lists what was seen. Left open: plan 007's NAS-side session kill and second-account run, plan 008's
 1,220-item day, and the Play Protect finding (plan 010 addendum, open question Q5). The next release
-waits on `main` being pushed. Release-script note: it pushes only the tag, so after each release
-the `chore(release)` bump commit has to be cherry-picked onto `main` (done for v1.0.0 and v1.0.1),
-or the script changed to push it.
+waits on `main` being pushed. The release script pushes its `chore(release)` bump commit to `main`
+along with the tag; a session that starts work after a release has to `git fetch` first or it builds
+from the previous version.
 
 Owner decisions the plans left open were taken by default and are recorded in each plan: minSdk 29
 (010), the theme's rose follows `colors.xml` (011), the grid double-tap is kept with a comment (010).
