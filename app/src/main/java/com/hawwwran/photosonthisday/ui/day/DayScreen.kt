@@ -4,6 +4,15 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -290,6 +299,21 @@ private fun PhotoCell(
 ) {
     val isSelected = selected.contains(likeKey(item.space, item.unitId))
     val selectionActive = selected.isNotEmpty()
+
+    // Double-tap like/unlike with a heart burst, like the viewer's photos elsewhere.
+    var burstToken by remember { mutableIntStateOf(0) }
+    var burstLiked by remember { mutableStateOf(false) }
+    val burstScale = remember { Animatable(0f) }
+    val burstAlpha = remember { Animatable(0f) }
+    LaunchedEffect(burstToken) {
+        if (burstToken == 0) return@LaunchedEffect
+        burstScale.snapTo(0.4f)
+        burstAlpha.snapTo(1f)
+        burstScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+        delay(350)
+        burstAlpha.animateTo(0f, tween(200))
+    }
+
     Box(
         Modifier
             .aspectRatio(1f)
@@ -297,6 +321,13 @@ private fun PhotoCell(
             .combinedClickable(
                 onClick = { if (selectionActive) viewModel.toggleSelect(item) else onOpenPhoto(globalIndex) },
                 onLongClick = { viewModel.startSelect(item) },
+                onDoubleClick = if (selectionActive) null else {
+                    {
+                        burstLiked = !likedKeys.contains(likeKey(item.space, item.unitId))
+                        viewModel.toggleLike(item)
+                        burstToken++
+                    }
+                },
             ),
     ) {
         Thumbnail(
@@ -320,6 +351,21 @@ private fun PhotoCell(
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.align(Alignment.TopStart).padding(4.dp).size(20.dp),
+            )
+        }
+        if (burstAlpha.value > 0f) {
+            Icon(
+                imageVector = if (burstLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(56.dp)
+                    .graphicsLayer {
+                        scaleX = burstScale.value
+                        scaleY = burstScale.value
+                        alpha = burstAlpha.value
+                    },
             )
         }
     }
