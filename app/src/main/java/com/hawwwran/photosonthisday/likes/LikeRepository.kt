@@ -8,6 +8,9 @@ import com.hawwwran.photosonthisday.data.db.LikeEntity
 import com.hawwwran.photosonthisday.session.AccountDataWiper
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -64,7 +67,14 @@ class LikeRepository(
 
     private val syncLock = Mutex()
     private val syncRequested = AtomicBoolean(false)
-    private var lastResult: SyncResult = SyncResult.Success()
+
+    /**
+     * How the last reconciliation went, or null before the first one. Settings shows it, because a
+     * toast is gone in three seconds and a File Station failure needs a sentence the user can read
+     * twice (and act on).
+     */
+    private val _lastSync = MutableStateFlow<SyncResult?>(null)
+    val lastSync: StateFlow<SyncResult?> = _lastSync.asStateFlow()
 
     /**
      * Reconcile with the NAS. Runs are serialized: a call that arrives while one runs marks it
@@ -75,8 +85,8 @@ class LikeRepository(
     suspend fun sync(session: Session): SyncResult {
         syncRequested.set(true)
         return syncLock.withLock {
-            while (syncRequested.compareAndSet(true, false)) lastResult = syncOnce(session)
-            lastResult
+            while (syncRequested.compareAndSet(true, false)) _lastSync.value = syncOnce(session)
+            _lastSync.value ?: SyncResult.Success()
         }
     }
 

@@ -35,6 +35,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.SingletonImageLoader
 import com.hawwwran.photosonthisday.R
+import com.hawwwran.photosonthisday.likes.SyncResult
 import com.hawwwran.photosonthisday.ui.formatBytes
 import com.hawwwran.photosonthisday.update.UpdateUiState
 import com.hawwwran.photosonthisday.update.UpdateViewModel
@@ -55,6 +56,8 @@ fun SettingsScreen(
     refreshHours: Long,
     likesFolder: String,
     onLikesFolderChange: (String) -> Unit,
+    /** The last likes reconciliation, shown in full: a File Station refusal names the DSM setting to change. */
+    likesSync: SyncResult?,
     likedByYear: Boolean,
     onLikedByYearChange: (Boolean) -> Unit,
     onClearCache: suspend () -> Unit,
@@ -106,6 +109,7 @@ fun SettingsScreen(
                     Text(stringResource(R.string.settings_likes_folder_save))
                 }
             }
+            Setting(stringResource(R.string.settings_likes_sync), likesSyncText(likesSync))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.settings_liked_by_year), modifier = Modifier.weight(1f))
                 Switch(checked = likedByYear, onCheckedChange = onLikedByYearChange)
@@ -135,6 +139,16 @@ fun SettingsScreen(
             Button(onClick = onSignOut) { Text(stringResource(R.string.sign_out)) }
         }
     }
+}
+
+@Composable
+private fun likesSyncText(result: SyncResult?): String = when (result) {
+    null -> stringResource(R.string.settings_likes_sync_never)
+    is SyncResult.Success ->
+        if (result.skippedKeys == 0) stringResource(R.string.settings_likes_sync_ok)
+        else stringResource(R.string.settings_likes_sync_skipped, result.skippedKeys)
+    SyncResult.SessionExpired -> stringResource(R.string.settings_likes_sync_expired)
+    is SyncResult.Failed -> stringResource(R.string.settings_likes_sync_failed, result.message)
 }
 
 @Composable

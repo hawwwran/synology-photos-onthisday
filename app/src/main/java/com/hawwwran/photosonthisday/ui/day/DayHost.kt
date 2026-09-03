@@ -68,9 +68,12 @@ fun DayHost(graph: AppGraph, session: Session, updateViewModel: UpdateViewModel,
     val auth = ThumbnailAuth(session.baseUrl, session.credentials.sid, session.credentials.synotoken)
     val likedKeys by viewModel.likedKeys.collectAsState()
     val likesNotice by viewModel.likesNotice.collectAsState()
+    val likesSync by viewModel.likesSync.collectAsState()
     LaunchedEffect(likesNotice) {
-        likesNotice?.let {
-            Toast.makeText(context, context.getString(R.string.likes_sync_failed, it), Toast.LENGTH_LONG).show()
+        // Short on purpose: the reason can be a two-sentence instruction about a DSM permission,
+        // and a toast shows two lines for three seconds. Settings carries the whole text.
+        if (likesNotice) {
+            Toast.makeText(context, context.getString(R.string.likes_sync_failed), Toast.LENGTH_LONG).show()
             viewModel.likesNoticeShown()
         }
     }
@@ -195,6 +198,7 @@ fun DayHost(graph: AppGraph, session: Session, updateViewModel: UpdateViewModel,
                 refreshHours = DayIndexRepository.DEFAULT_STALE_AFTER / (60 * 60 * 1000L),
                 likesFolder = likesFolder,
                 onLikesFolderChange = { path -> scope.launch { graph.sessionStore.setLikesFolder(path) } },
+                likesSync = likesSync,
                 likedByYear = likedByYear,
                 onLikedByYearChange = { value -> scope.launch { graph.sessionStore.setLikedByYear(value) } },
                 onClearCache = { graph.thumbnailWiper.wipe() },

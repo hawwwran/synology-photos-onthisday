@@ -71,7 +71,13 @@
     <string name="settings_likes_folder">Složka pro lajky na NAS</string>
     <string name="settings_likes_folder_save">Uložit složku</string>
     <string name="settings_liked_by_year">Oblíbené rozdělit podle roku</string>
-    <string name="likes_sync_failed">Oblíbené se nepodařilo sladit s NAS: %1$s</string>
+    <string name="likes_sync_failed">Lajky se nesladily s NAS. Důvod je v Nastavení.</string>
+    <string name="settings_likes_sync">Slaďování lajků s NAS</string>
+    <string name="settings_likes_sync_never">Zatím neproběhlo</string>
+    <string name="settings_likes_sync_ok">V pořádku</string>
+    <string name="settings_likes_sync_skipped">V pořádku, %1$d neplatných záznamů v souboru přeskočeno</string>
+    <string name="settings_likes_sync_expired">Nepodařilo se: NAS ukončil relaci</string>
+    <string name="settings_likes_sync_failed">Nepodařilo se: %1$s</string>
 
     <!-- Updates -->
     <string name="update_banner">Nová verze — v%1$s</string>

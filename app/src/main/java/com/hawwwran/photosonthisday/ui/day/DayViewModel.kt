@@ -173,23 +173,27 @@ class DayViewModel(
     val refreshing: StateFlow<Boolean> = _refreshing
 
     /**
-     * A likes sync failure to show, once per session: the plain-language reason, or null. Decision
-     * 008 says a failed sync keeps the like and retries, so this is a notice, not an error state;
-     * one is enough, every later sync would repeat it.
+     * True once when a likes sync has failed, so the screen can say so. Decision 008 says a failed
+     * sync keeps the like and retries, so this is a notice, not an error state, and one is enough.
+     * The reason itself lives in [likesSync], which Settings shows: it can be a two-sentence
+     * instruction about a DSM permission, which no toast can hold.
      */
-    private val _likesNotice = MutableStateFlow<String?>(null)
-    val likesNotice: StateFlow<String?> = _likesNotice
+    private val _likesNotice = MutableStateFlow(false)
+    val likesNotice: StateFlow<Boolean> = _likesNotice
     private var likesNoticeShown = false
 
     fun likesNoticeShown() {
-        _likesNotice.value = null
+        _likesNotice.value = false
     }
+
+    /** How the last likes reconciliation went, for the Settings line. */
+    val likesSync: StateFlow<SyncResult?> = likes.lastSync
 
     private suspend fun syncLikes() {
         val result = likes.sync(session)
         if (result is SyncResult.Failed && !likesNoticeShown) {
             likesNoticeShown = true
-            _likesNotice.value = result.message
+            _likesNotice.value = true
         }
     }
 

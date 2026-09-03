@@ -124,9 +124,13 @@ is not an envelope is `Malformed`, not success. Download: decide by shape, not h
       failure; `sync` catches it as `Failed` before any push. `FileStationClientTest` "a file that
       exists but is not the likes shape is Malformed"; `LikeRepositoryTest` "a file that exists but
       cannot be read stops the sync and pushes nothing".
-- [x] `DayViewModel.syncLikes()` wraps every sync; the first `Failed` per view model lands in
-      `likesNotice`, which `DayHost` shows as a toast (`R.string.likes_sync_failed`) and clears.
-      Decision 008 amended (2026-09-03).
+- [x] `DayViewModel.syncLikes()` wraps every sync; the first `Failed` per view model raises
+      `likesNotice`, which `DayHost` shows as a toast and clears. Amended the same evening after the
+      owner reported the toast was cut off on another household phone: the toast is now one short
+      sentence pointing at Settings, and Settings carries a "Slaďování lajků s NAS" line reading
+      `LikeRepository.lastSync` in full. File Station codes also have their own Czech text now
+      (`DsmErrorText.forFileStation`), because 105, 407 and 408 each name a different DSM setting to
+      change and the generic "NAS odmítl požadavek" named none. Decision 008 amended (2026-09-03).
 
 ### 5. Settings and logging
 
