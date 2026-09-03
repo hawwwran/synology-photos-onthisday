@@ -17,8 +17,8 @@ android {
         // every supported level (decision 004, amended 2026-09-03). Household phones are newer.
         minSdk = 29
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.0.2"
+        versionCode = 5
+        versionName = "1.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         setProperty("archivesBaseName", "OnThisDay-$versionName")
     }
