@@ -1,6 +1,7 @@
 # 009 - Likes hardening
 
-- **Status:** Not started. Written from the whole-project code review of 2026-09-03.
+- **Status:** Code done 2026-09-03; the device check waits for the Vivo (no device attached in the
+  executing session).
 - **Source:** code review 2026-09-03: findings 3, 5, 10 and the smaller likes findings (folder
   setting surviving an account change, corrupt file overwritten, unserialized syncs, folder path
   logged).
@@ -8,7 +9,7 @@
 - **Blocks:** 011.
 - **Decisions:** [008](../decisions/008-writing-likes-to-the-nas.md) (amend: sync is serialized
   and transactional; a file the app cannot read is never overwritten).
-- **Progress:** 0 / 13
+- **Progress:** 12 / 13
 
 ## Goal
 
@@ -87,44 +88,53 @@ is not an envelope is `Malformed`, not success. Download: decide by shape, not h
 
 ### 1. Key parsing
 
-- [ ] `parseLikeKey(key): Pair<Space, Int>?` next to `likeKey` in `likes/Likes.kt`; `toEntity` and
-      `likedKeys` use it; bad rows are skipped and counted, never persisted. `LikesTest` covers
-      `"abc"`, `"PERSONAL:x"`, `"FOO:5"`, `":5"`, and a good key.
-- [ ] `likedKeys` tolerates a stored row with an unknown namespace (skips it) so an already-poisoned
-      install recovers on update.
+- [x] `parseLikeKey` and `spaceOrNull` in `likes/Likes.kt`; `LikeRepository.toEntity` uses the
+      first, `toState` and `likedKeys` the second. `SyncResult.Success(skippedKeys)` carries the
+      count. `LikesTest` "a key is parsed, never destructured" covers eight bad shapes and two good;
+      `LikeRepositoryTest` "a bad key in the file is skipped and counted, never persisted".
+- [x] `LikeRepositoryTest` "a stored row with an unknown namespace is skipped by likedKeys".
 
 ### 2. Serialized, transactional sync
 
-- [ ] `LikeDao.reconcile(remote: List<LikeState>)` as one `@Transaction` that reads, merges via
-      `LikesMerge`, writes, and returns the merged set to push. `replaceAll` goes.
-- [ ] A `Mutex` and a dirty flag in `LikeRepository.sync`; concurrent callers coalesce into at most
-      one follow-up run. Test with `runTest` and a fake DAO: a toggle between pull and write survives;
-      three overlapping sync calls produce two runs.
-- [ ] `pendingSync` removed from `LikeEntity` (schema 5, plan 008) and from all call sites.
-- [ ] `likeSelected` writes one batch.
+- [x] `LikeDao.reconcile(merge)` is one `@Transaction` default method: read `all()`, apply the
+      caller's merge, `upsertAll`, return what was written. No `clear()` in the middle; `replaceAll`
+      is gone. The DAO stays free of the `likes` package: the repository passes the merge as a lambda.
+- [x] `Mutex` plus an `AtomicBoolean` request flag: a caller sets the flag, takes the lock, and loops
+      while the flag is set. `LikeRepositoryTest`: "a toggle made while the file is being pulled is in
+      the pushed set and stays liked"; "overlapping sync requests collapse into one follow-up run"
+      (three calls, two pulls).
+- [x] `pendingSync` gone from `LikeEntity` (plan 008's migration) and from every call site.
+- [x] `LikeRepository.setLikedAll` is one `upsertAll` with one timestamp; `DayViewModel.likeSelected`
+      calls it. Test "like selected writes one batch with one timestamp".
 
 ### 3. Envelope classification shared
 
-- [ ] Extract the `{success, error.code}` classifier from `SynologyClient` into one function that
-      returns `Success(data) | DsmError(code) | SessionExpired(code) | Malformed`; both clients use
-      it. `HardeningTest` or a new `FileStationClientTest` with `MockWebServer`: HTML 200 on upload
-      is `Malformed`; 119 on download is `SessionExpired`; a `likes.json` body without
-      `Content-Disposition` is parsed as the file.
-- [ ] `catch (e: Exception)` in `errorCode` narrowed or removed with the extraction.
+- [x] `api/Envelope.kt`: `Json.classifyEnvelope(body)` returns `Success(data) | Error(code) |
+      NotAnEnvelope(detail)`; `ApiFailure.fromDsmCode(call, code)` maps a code to `SessionExpired`
+      or `DsmError` once. `SynologyClient.decodeEnvelope` and both `FileStationClient` paths use them.
+      `FileStationClientTest`: HTML 200 on upload is `Malformed`; 119 on upload and on download is
+      `SessionExpired`; a `likes.json` body with no `Content-Disposition` is the file; 404 and 408 are
+      null; a success envelope where a file was expected is `Malformed`.
+- [x] `errorCode` and its `catch (e: Exception)` are gone; the classifier catches
+      `SerializationException` and `IllegalArgumentException` only.
 
 ### 4. Never overwrite what cannot be read
 
-- [ ] A present but unparseable `likes.json` ends `sync` with `Failed` and no push. Test.
-- [ ] `SyncResult.Failed` is surfaced once per session (toast from `DayHost`, text from
-      `strings.xml`), not dropped. Amend decision 008 (dated line) with the serialization and
-      no-overwrite rules.
+- [x] `LikesNasStore.pull` throws `Malformed(FS_DOWNLOAD, "likes file is not readable")` on a parse
+      failure; `sync` catches it as `Failed` before any push. `FileStationClientTest` "a file that
+      exists but is not the likes shape is Malformed"; `LikeRepositoryTest` "a file that exists but
+      cannot be read stops the sync and pushes nothing".
+- [x] `DayViewModel.syncLikes()` wraps every sync; the first `Failed` per view model lands in
+      `likesNotice`, which `DayHost` shows as a toast (`R.string.likes_sync_failed`) and clears.
+      Decision 008 amended (2026-09-03).
 
 ### 5. Settings and logging
 
-- [ ] `LIKES_FOLDER` resets to the default on account change (wiper registered in `AppGraph`).
-      `SessionManagerTest` covers it.
-- [ ] Likes logging goes through `ApiLog` (or a `LikesLog` with the same discipline): call name and
-      outcome, no path, no count of entries.
+- [x] `SessionStore.resetAccountSettings()` removes `LIKES_FOLDER`; `AppGraph` registers it among
+      the account-change-only wipers. `SessionManagerTest` "the likes folder follows the account":
+      kept across a same-account re-login, default after a change.
+- [x] `LikeRepository` logs nothing; the two clients log through `ApiLog` (call name, code or
+      detail). The folder path and the entry count no longer reach the log.
 
 ### 6. Verify on device
 
@@ -132,14 +142,19 @@ is not an envelope is `Malformed`, not success. Download: decide by shape, not h
       `likes.json` on the NAS afterwards (read it via File Station or the DSM file browser). Edit
       `likes.json` to contain a bad key, open the app: no crash, other likes shown, the file is not
       overwritten until the bad row is removed.
+      > Blocked: no device attached in the executing session. Note for the run: a bad *key* is now
+      > skipped and the file *is* rewritten without it (decision 008 amendment); only a file that
+      > does not parse at all is left alone.
 
 ## Acceptance criteria
 
-- [ ] No `Exception` other than `ApiFailure` can escape `LikeRepository.sync` (read the code; the
-      tests above pin the known shapes).
-- [ ] A like toggled during a sync is in the next `likes.json`.
-- [ ] An unreadable `likes.json` is never overwritten, and the user is told once.
-- [ ] `./gradlew testDebugUnitTest` green.
+- [x] Read: `syncOnce` calls the remote (throws `ApiFailure` only, by contract and by the client's
+      catches), `parseLikeKey`/`spaceOrNull` (never throw), `LikesMerge` (pure) and the DAO. Every
+      `ApiFailure` is caught. A Room exception on a full disk is the one path outside this, as for
+      every other write in the app.
+- [x] `LikeRepositoryTest` "a toggle made while the file is being pulled is in the pushed set".
+- [x] Tests above; the toast path is by reading (`DayHost` `LaunchedEffect(likesNotice)`).
+- [x] `./gradlew testDebugUnitTest` green: 98 tests.
 
 ## On completion
 

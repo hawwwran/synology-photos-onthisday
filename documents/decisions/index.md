@@ -13,7 +13,7 @@ summary leaves out.
 | [005](005-day-index-on-device.md) | 2026-09-02 | The day histogram lives in Room and answers day questions offline. A day's photos are fetched by `start_time`/`end_time` (amended 2026-09-02; the offset arithmetic was verified once and retired). Photos' own day boundaries are authoritative: the UTC date of `time`. |
 | [006](006-one-account-per-install.md) | 2026-09-02 | One account per install, identified by base URL plus account name (amended 2026-09-03). An account change deletes the index and every cache before showing anything. |
 | [007](007-stack-and-layout.md) | 2026-09-02 | The strumbook Android skeleton, `com.hawwwran.photosonthisday`, single module, Compose and Room and Coil 3. |
-| [008](008-writing-likes-to-the-nas.md) | 2026-09-02 | Likes are written to the NAS as one app-owned File Station file (`Upload`/`Download` only). Synology Photos stays strictly read-only; the write allowlist is held apart from the read allowlist. |
+| [008](008-writing-likes-to-the-nas.md) | 2026-09-02 | Likes are written to the NAS as one app-owned File Station file (`Upload`/`Download` only). Synology Photos stays strictly read-only; the write allowlist is held apart from the read allowlist. Sync is serialized and transactional, and an unreadable file is never overwritten (amended 2026-09-03). |
 
 ## Open questions
 

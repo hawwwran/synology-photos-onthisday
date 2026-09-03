@@ -95,7 +95,12 @@ class AppGraph(context: Context) {
     val imageSaver = ImageSaver(context.applicationContext, http)
     val mediaSharer = MediaSharer(context.applicationContext, http)
 
-    val sessions = SessionManager(authApi, sessionStore, accountDataWipers, listOf(thumbnailWiper))
+    val sessions = SessionManager(
+        authApi,
+        sessionStore,
+        accountDataWipers,
+        accountChangeOnlyWipers = listOf(thumbnailWiper, AccountDataWiper { sessionStore.resetAccountSettings() }),
+    )
 
     val dayIndex = DayIndexRepository(
         store = RoomDayIndexStore(database.dayIndexDao()),

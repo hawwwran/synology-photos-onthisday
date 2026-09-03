@@ -13,7 +13,7 @@ dependency column is.
 | [006](006-likes.md) | Liking photos, stored on the NAS | Built, live test pending 2026-09-03 | 005, decision 008 | code complete |
 | [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Code done 2026-09-03; device checks pending | 005 | 12 / 14 |
 | [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Code done 2026-09-03; instrumented tests and device check pending | 005 | 9 / 12 |
-| [009](009-likes-hardening.md) | Likes hardening | Not started (code review 2026-09-03) | 007, 008 | 0 / 13 |
+| [009](009-likes-hardening.md) | Likes hardening | Code done 2026-09-03; device check pending | 007, 008 | 12 / 13 |
 | [010](010-viewer-save-share-and-update.md) | Viewer, save, share and the update flow | Not started (code review 2026-09-03) | 005 (run after 007) | 0 / 14 |
 | [011](011-documentation-logging-and-dead-code.md) | Documentation, the logging rule and dead code | Not started (code review 2026-09-03) | 007-010 | 0 / 14 |
 

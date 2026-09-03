@@ -8,6 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +63,13 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
     )
     val auth = ThumbnailAuth(session.baseUrl, session.credentials.sid, session.credentials.synotoken)
     val likedKeys by viewModel.likedKeys.collectAsState()
+    val likesNotice by viewModel.likesNotice.collectAsState()
+    LaunchedEffect(likesNotice) {
+        likesNotice?.let {
+            Toast.makeText(context, context.getString(R.string.likes_sync_failed, it), Toast.LENGTH_LONG).show()
+            viewModel.likesNoticeShown()
+        }
+    }
     val likesFolder by graph.sessionStore.likesFolder().collectAsState(initial = SessionStore.DEFAULT_LIKES_FOLDER)
     val likedByYear by graph.sessionStore.likedByYear().collectAsState(initial = false)
 

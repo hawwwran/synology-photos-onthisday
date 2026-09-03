@@ -34,5 +34,9 @@ sealed class ApiFailure(message: String, cause: Throwable? = null) : Exception(m
          * user out would loop on every refresh (decision 003, amended 2026-09-03).
          */
         val SESSION_GONE_CODES = setOf(106, 107, 119)
+
+        /** The failure a `success: false` envelope means: a dead session re-prompts, anything else is DSM's answer. */
+        fun fromDsmCode(call: ApiCall, code: Int): ApiFailure =
+            if (code in SESSION_GONE_CODES) SessionExpired(call, code) else DsmError(call, code)
     }
 }

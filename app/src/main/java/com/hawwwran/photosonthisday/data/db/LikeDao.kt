@@ -18,18 +18,21 @@ interface LikeDao {
     suspend fun find(namespace: String, unitId: Int): LikeEntity?
 
     @Upsert
-    suspend fun upsert(entity: LikeEntity)
-
-    @Upsert
     suspend fun upsertAll(entities: List<LikeEntity>)
 
     @Query("DELETE FROM item_like")
     suspend fun clear()
 
-    /** Reconciliation writes the merged set as the new local truth. */
+    /**
+     * Read the local rows, let [merge] fold the remote file into them, write the result, all in
+     * one transaction, and return what was written so the caller can push it. No `DELETE` in the
+     * middle: a toggle that commits before this transaction is read and merged, one that commits
+     * after it survives untouched. The old read-clear-write lost a toggle that landed in between.
+     */
     @Transaction
-    suspend fun replaceAll(entities: List<LikeEntity>) {
-        clear()
-        upsertAll(entities)
+    suspend fun reconcile(merge: (local: List<LikeEntity>) -> List<LikeEntity>): List<LikeEntity> {
+        val merged = merge(all())
+        upsertAll(merged)
+        return merged
     }
 }

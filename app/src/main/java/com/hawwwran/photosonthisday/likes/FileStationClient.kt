@@ -1,16 +1,16 @@
 package com.hawwwran.photosonthisday.likes
 
 import com.hawwwran.photosonthisday.api.Allowlist
-import com.hawwwran.photosonthisday.api.ApiLog
+import com.hawwwran.photosonthisday.api.ApiCall
 import com.hawwwran.photosonthisday.api.ApiFailure
+import com.hawwwran.photosonthisday.api.ApiLog
+import com.hawwwran.photosonthisday.api.Envelope
 import com.hawwwran.photosonthisday.api.SessionCredentials
 import com.hawwwran.photosonthisday.api.SynologyClient
+import com.hawwwran.photosonthisday.api.classifyEnvelope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -25,20 +25,26 @@ import java.io.IOException
  * Station method throws before a request exists. Photos is never touched here.
  *
  * The session travels in the query and the token in the `X-SYNO-TOKEN` header, which DSM requires
- * on a state-changing call such as the upload.
+ * on a state-changing call such as the upload. Bodies are read by shape, with the same envelope
+ * classifier as the Photos client: a proxy's HTML page is [ApiFailure.Malformed], never success.
  */
 class FileStationClient(
     private val http: OkHttpClient,
     private val json: Json = Json { ignoreUnknownKeys = true },
 ) {
-    /** The file's bytes, or null if it does not exist yet. Other failures throw. */
+    /**
+     * The file's bytes, or null if it does not exist yet. Other failures throw. The file and a
+     * File Station error both arrive as HTTP 200, so the body decides: a `{success, ...}` object is
+     * an envelope, anything else is the file, which the caller then parses.
+     */
     suspend fun download(baseUrl: HttpUrl, path: String, credentials: SessionCredentials): ByteArray? =
         withContext(Dispatchers.IO) {
-            Allowlist.require(Allowlist.FS_DOWNLOAD)
+            val call = Allowlist.FS_DOWNLOAD
+            Allowlist.require(call)
             val url = SynologyClient.entryCgi(baseUrl).newBuilder()
-                .addQueryParameter("api", Allowlist.FS_DOWNLOAD.api)
-                .addQueryParameter("version", Allowlist.FS_DOWNLOAD.version.toString())
-                .addQueryParameter("method", Allowlist.FS_DOWNLOAD.method)
+                .addQueryParameter("api", call.api)
+                .addQueryParameter("version", call.version.toString())
+                .addQueryParameter("method", call.method)
                 .addQueryParameter("path", path)
                 .addQueryParameter("mode", "download")
                 .addQueryParameter("_sid", credentials.sid)
@@ -48,45 +54,40 @@ class FileStationClient(
                 .build()
             try {
                 http.newCall(request).execute().use { response ->
-                    // This DSM answers a missing file with HTTP 404 rather than a JSON 408; treat both as "not yet".
+                    // This DSM answers a missing file with HTTP 404 rather than a JSON 408; both mean "not yet".
                     if (response.code == 404) {
-                        ApiLog.dsmError(Allowlist.FS_DOWNLOAD, FILE_NOT_FOUND)
+                        ApiLog.dsmError(call, FILE_NOT_FOUND)
                         return@use null
                     }
-                    if (!response.isSuccessful) {
-                        ApiLog.malformed(Allowlist.FS_DOWNLOAD, "HTTP ${response.code}")
-                        throw ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "HTTP ${response.code}")
-                    }
-                    val body = response.body ?: throw ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "empty body")
-                    // A real download carries a Content-Disposition; a File Station error is JSON without one.
-                    if (response.header("Content-Disposition") != null) {
-                        ApiLog.ok(Allowlist.FS_DOWNLOAD)
-                        body.bytes()
-                    } else {
-                        val code = errorCode(body.string())
-                        if (code == FILE_NOT_FOUND) {
-                            ApiLog.dsmError(Allowlist.FS_DOWNLOAD, FILE_NOT_FOUND) // normal on the first run
-                            null
-                        } else {
-                            ApiLog.dsmError(Allowlist.FS_DOWNLOAD, code ?: -1)
-                            throw ApiFailure.DsmError(Allowlist.FS_DOWNLOAD, code ?: -1)
+                    if (!response.isSuccessful) throw malformed(call, "HTTP ${response.code}")
+                    val bytes = response.body.bytes()
+                    when (val envelope = json.classifyEnvelope(bytes.decodeToString())) {
+                        is Envelope.NotAnEnvelope -> {
+                            ApiLog.ok(call)
+                            bytes
                         }
+                        is Envelope.Error -> {
+                            ApiLog.dsmError(call, envelope.code)
+                            if (envelope.code == FILE_NOT_FOUND) null else throw ApiFailure.fromDsmCode(call, envelope.code)
+                        }
+                        is Envelope.Success -> throw malformed(call, "download answered an envelope, not a file")
                     }
                 }
             } catch (e: IOException) {
-                ApiLog.transport(Allowlist.FS_DOWNLOAD, e)
-                throw ApiFailure.Transport(Allowlist.FS_DOWNLOAD, e)
+                ApiLog.transport(call, e)
+                throw ApiFailure.Transport(call, e)
             }
         }
 
     /** Save the file into [folder] as [name], creating the folder if needed, overwriting if present. */
     suspend fun upload(baseUrl: HttpUrl, folder: String, name: String, bytes: ByteArray, credentials: SessionCredentials) =
         withContext(Dispatchers.IO) {
-            Allowlist.require(Allowlist.FS_UPLOAD)
+            val call = Allowlist.FS_UPLOAD
+            Allowlist.require(call)
             val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
-                .addFormDataPart("api", Allowlist.FS_UPLOAD.api)
-                .addFormDataPart("version", Allowlist.FS_UPLOAD.version.toString())
-                .addFormDataPart("method", Allowlist.FS_UPLOAD.method)
+                .addFormDataPart("api", call.api)
+                .addFormDataPart("version", call.version.toString())
+                .addFormDataPart("method", call.method)
                 .addFormDataPart("path", folder)
                 .addFormDataPart("create_parents", "true")
                 .addFormDataPart("overwrite", "true")
@@ -100,32 +101,26 @@ class FileStationClient(
                 .build()
             try {
                 http.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        ApiLog.malformed(Allowlist.FS_UPLOAD, "HTTP ${response.code}")
-                        throw ApiFailure.Malformed(Allowlist.FS_UPLOAD, "HTTP ${response.code}")
+                    if (!response.isSuccessful) throw malformed(call, "HTTP ${response.code}")
+                    when (val envelope = json.classifyEnvelope(response.body.string())) {
+                        is Envelope.Success -> ApiLog.ok(call)
+                        is Envelope.Error -> {
+                            ApiLog.dsmError(call, envelope.code)
+                            throw ApiFailure.fromDsmCode(call, envelope.code)
+                        }
+                        // A body that is not an envelope is not a confirmation: the file may never have been written.
+                        is Envelope.NotAnEnvelope -> throw malformed(call, envelope.detail)
                     }
-                    val code = errorCode(response.body?.string().orEmpty())
-                    if (code != null) {
-                        ApiLog.dsmError(Allowlist.FS_UPLOAD, code)
-                        throw ApiFailure.DsmError(Allowlist.FS_UPLOAD, code)
-                    }
-                    ApiLog.ok(Allowlist.FS_UPLOAD)
                 }
             } catch (e: IOException) {
-                ApiLog.transport(Allowlist.FS_UPLOAD, e)
-                throw ApiFailure.Transport(Allowlist.FS_UPLOAD, e)
+                ApiLog.transport(call, e)
+                throw ApiFailure.Transport(call, e)
             }
         }
 
-    /** The DSM error code from a `{success:false,error:{code}}` body, or null when it succeeded. */
-    private fun errorCode(body: String): Int? {
-        val root = try {
-            json.parseToJsonElement(body).jsonObject
-        } catch (e: Exception) {
-            return null // not a Synology envelope; treat as success (e.g. raw file bytes)
-        }
-        if (root["success"]?.jsonPrimitive?.content == "true") return null
-        return root["error"]?.jsonObject?.get("code")?.jsonPrimitive?.intOrNull ?: -1
+    private fun malformed(call: ApiCall, detail: String): ApiFailure.Malformed {
+        ApiLog.malformed(call, detail)
+        return ApiFailure.Malformed(call, detail)
     }
 
     private companion object {

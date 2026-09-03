@@ -45,7 +45,10 @@ class SessionManagerTest {
             auth = AuthApi(SynologyClient(OkHttpClient())),
             store = store,
             wipers = listOf(AccountDataWiper { wipes += "wiped" }),
-            accountChangeOnlyWipers = listOf(AccountDataWiper { thumbWipes += "thumbs" }),
+            accountChangeOnlyWipers = listOf(
+                AccountDataWiper { thumbWipes += "thumbs" },
+                AccountDataWiper { store.resetAccountSettings() }, // as AppGraph wires it
+            ),
         )
     }
 
@@ -174,6 +177,25 @@ class SessionManagerTest {
         } finally {
             otherNas.close()
         }
+    }
+
+    @Test
+    fun `the likes folder follows the account, reset on a change and kept on a same-account re-login`() = runTest {
+        enqueue(loginOk("S1"))
+        sessions.signIn(server.url("/"), "anna", "pw", null)
+        store.setLikesFolder("/photo/anna-likes")
+        enqueue("""{"success":true}""")
+        sessions.signOut()
+        enqueue(loginOk("S2"))
+        sessions.signIn(server.url("/"), "anna", "pw", null)
+        assertEquals("/photo/anna-likes", store.likesFolder().first())
+
+        enqueue("""{"success":true}""")
+        sessions.signOut()
+        enqueue(loginOk("S3"))
+        sessions.signIn(server.url("/"), "bob", "pw", null)
+
+        assertEquals(SessionStore.DEFAULT_LIKES_FOLDER, store.likesFolder().first())
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.hawwwran.photosonthisday.core.selectDay
 import com.hawwwran.photosonthisday.data.DayIndexData
 import com.hawwwran.photosonthisday.data.DayIndexRepository
 import com.hawwwran.photosonthisday.likes.LikeRepository
+import com.hawwwran.photosonthisday.likes.SyncResult
 import com.hawwwran.photosonthisday.likes.likeKey
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.coroutineScope
@@ -166,6 +167,27 @@ class DayViewModel(
     private val _refreshing = MutableStateFlow(false)
     val refreshing: StateFlow<Boolean> = _refreshing
 
+    /**
+     * A likes sync failure to show, once per session: the plain-language reason, or null. Decision
+     * 008 says a failed sync keeps the like and retries, so this is a notice, not an error state;
+     * one is enough, every later sync would repeat it.
+     */
+    private val _likesNotice = MutableStateFlow<String?>(null)
+    val likesNotice: StateFlow<String?> = _likesNotice
+    private var likesNoticeShown = false
+
+    fun likesNoticeShown() {
+        _likesNotice.value = null
+    }
+
+    private suspend fun syncLikes() {
+        val result = likes.sync(session)
+        if (result is SyncResult.Failed && !likesNoticeShown) {
+            likesNoticeShown = true
+            _likesNotice.value = result.message
+        }
+    }
+
     /** Grid multi-selection, keyed like likes. Empty means not in selection mode. */
     private val _selected = MutableStateFlow<Set<String>>(emptySet())
     val selected: StateFlow<Set<String>> = _selected
@@ -175,7 +197,7 @@ class DayViewModel(
             val result = repository.refreshIfStale(session)
             loadError.value = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message
         }
-        viewModelScope.launch { likes.sync(session) } // pull the NAS likes so they show, push any pending
+        viewModelScope.launch { syncLikes() } // pull the NAS likes so they show, push any pending
         // Reload the year sections whenever the shown day changes or a refresh is asked for. A
         // changed tick means the user asked, so the cached-count skip in fetchDay is bypassed.
         viewModelScope.launch {
@@ -230,7 +252,7 @@ class DayViewModel(
     fun toggleLike(item: com.hawwwran.photosonthisday.api.PhotoItem) {
         viewModelScope.launch {
             likes.toggle(item.space, item.unitId)
-            likes.sync(session)
+            syncLikes()
         }
     }
 
@@ -276,8 +298,8 @@ class DayViewModel(
             val current = likedKeys.value
             val allLiked = items.all { current.contains(likeKey(it.space, it.unitId)) }
             val target = !allLiked
-            items.forEach { likes.setLiked(it.space, it.unitId, target) }
-            likes.sync(session)
+            likes.setLikedAll(items.map { it.space to it.unitId }, target)
+            syncLikes()
             clearSelection()
         }
     }

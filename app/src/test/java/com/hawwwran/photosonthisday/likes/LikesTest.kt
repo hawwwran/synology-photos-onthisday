@@ -4,6 +4,7 @@ import com.hawwwran.photosonthisday.api.Space
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -13,6 +14,15 @@ class LikesTest {
     fun `like key distinguishes the namespaces`() {
         assertEquals("PERSONAL:5", likeKey(Space.PERSONAL, 5))
         assertEquals("SHARED:5", likeKey(Space.SHARED, 5))
+    }
+
+    @Test
+    fun `a key is parsed, never destructured`() {
+        assertEquals(Space.PERSONAL to 5, parseLikeKey("PERSONAL:5"))
+        assertEquals(Space.SHARED to 246724, parseLikeKey("SHARED:246724"))
+        for (bad in listOf("abc", "PERSONAL:x", "FOO:5", ":5", "PERSONAL:", "", "PERSONAL:5:6", "personal:5")) {
+            assertNull("'$bad' must not parse", parseLikeKey(bad))
+        }
     }
 
     @Test

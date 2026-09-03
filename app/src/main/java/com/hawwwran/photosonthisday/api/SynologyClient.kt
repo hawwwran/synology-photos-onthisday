@@ -2,15 +2,9 @@ package com.hawwwran.photosonthisday.api
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -90,26 +84,18 @@ class SynologyClient(
     ): JsonObject = this.call(baseUrl, call, params, credentials) as? JsonObject
         ?: throw malformed(call, "data is not an object")
 
-    private fun decodeEnvelope(call: ApiCall, body: String): JsonElement {
-        val root = try {
-            json.parseToJsonElement(body).jsonObject
-        } catch (e: SerializationException) {
-            throw malformed(call, "response is not JSON")
-        } catch (e: IllegalArgumentException) {
-            throw malformed(call, "response is not a JSON object")
+    private fun decodeEnvelope(call: ApiCall, body: String): JsonElement =
+        when (val envelope = json.classifyEnvelope(body)) {
+            is Envelope.Success -> {
+                ApiLog.ok(call)
+                envelope.data
+            }
+            is Envelope.Error -> {
+                ApiLog.dsmError(call, envelope.code)
+                throw ApiFailure.fromDsmCode(call, envelope.code)
+            }
+            is Envelope.NotAnEnvelope -> throw malformed(call, envelope.detail)
         }
-        val success = root["success"]?.jsonPrimitive?.booleanOrNull
-            ?: throw malformed(call, "no success flag")
-        if (success) {
-            ApiLog.ok(call)
-            return root["data"] ?: JsonNull
-        }
-        val code = root["error"]?.jsonObject?.get("code")?.jsonPrimitive?.intOrNull
-            ?: throw malformed(call, "error without a code")
-        ApiLog.dsmError(call, code)
-        if (code in ApiFailure.SESSION_GONE_CODES) throw ApiFailure.SessionExpired(call, code)
-        throw ApiFailure.DsmError(call, code)
-    }
 
     private fun malformed(call: ApiCall, detail: String): ApiFailure.Malformed {
         ApiLog.malformed(call, detail)

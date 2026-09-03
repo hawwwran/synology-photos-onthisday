@@ -68,6 +68,7 @@
     <string name="settings_likes_folder">Složka pro lajky na NAS</string>
     <string name="settings_likes_folder_save">Uložit složku</string>
     <string name="settings_liked_by_year">Oblíbené rozdělit podle roku</string>
+    <string name="likes_sync_failed">Oblíbené se nepodařilo sladit s NAS: %1$s</string>
 
     <!-- Updates -->
     <string name="update_banner">Nová verze — v%1$s</string>

@@ -61,6 +61,21 @@ likes file, through File Station, never through a Photos endpoint.**
 - **Local only.** Rejected: the owner wants the likes on the NAS, and the account-change wipe
   would erase a local-only set.
 
+## Amendments
+
+- 2026-09-03, plan 009: **sync is serialized and transactional, and a file the app cannot read is
+  never overwritten.** Syncs run one at a time; a request that arrives during a run marks it dirty
+  and the run goes once more, so overlapping toggles collapse into at most one follow-up. The
+  read-merge-write happens inside one Room transaction with no `DELETE` in the middle, because the
+  previous clear-then-insert lost a toggle that committed between the read and the clear. A
+  `likes.json` that exists but does not parse ends the sync as a failure, reported to the user once
+  per session, and nothing is pushed: the earlier code read such a file as empty and uploaded over
+  it. Keys read from the file are parsed, not destructured; an entry that is not `NAMESPACE:id` is
+  skipped and counted, never persisted. The `pendingSync` column is gone (schema 5, plan 008):
+  last-writer-wins by `updatedAt` already carries a failed push into the next sync. The likes-folder
+  setting is reset on an account change, since it belongs to the previous account
+  ([[006-one-account-per-install]]).
+
 ## Related
 
 [[001-web-api-is-the-only-source]], [[002-personal-and-shared-space]],

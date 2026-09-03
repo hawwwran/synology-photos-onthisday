@@ -126,6 +126,15 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
         }
     }
 
+    /**
+     * Account change (decision 006): the likes folder is the previous account's choice and would
+     * point the new account's sync at the old account's file. Back to the default; the display
+     * preferences stay, they describe the device's owner, not an account.
+     */
+    suspend fun resetAccountSettings() {
+        dataStore.edit { prefs -> prefs.remove(LIKES_FOLDER) }
+    }
+
     /** Sign-out: the credentials go, the address and account stay to prefill the form. */
     suspend fun clearCredentials() {
         dataStore.edit { prefs ->
