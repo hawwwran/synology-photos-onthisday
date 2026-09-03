@@ -36,6 +36,15 @@ data class YearSection(
     val error: String? = null,
 )
 
+/**
+ * The day laid out for the grid: all liked items in one group at the very top (across every year,
+ * frozen at day load), then the year groups in date order with the liked ones removed.
+ */
+data class DayDisplay(
+    val liked: List<ViewerItem>,
+    val years: List<YearSection>,
+)
+
 /** What the day screen shows, for the day currently chosen (today by default, or a browsed day). */
 sealed interface DayViewState {
     data object Loading : DayViewState
@@ -88,19 +97,22 @@ class DayViewModel(
     private val _sections = MutableStateFlow<List<YearSection>>(emptyList())
 
     /**
-     * The liked set frozen at day load, used only for ordering. Liking or unliking after that
-     * updates the heart (via [likedKeys]) but does not move the item under the user's finger; the
-     * order is recomputed only when the day is (re)loaded.
+     * The liked set frozen at day load. Liking or unliking after that updates the heart (via
+     * [likedKeys]) but does not move an item into or out of the top group under the user's finger;
+     * membership is recomputed only when the day is (re)loaded.
      */
     private val orderKeys = MutableStateFlow<Set<String>>(emptySet())
 
-    /** Year sections with liked items floated to the front of each year, by the day-load snapshot. */
-    val sections: StateFlow<List<YearSection>> =
-        combine(_sections, orderKeys) { list, order ->
-            list.map { section ->
-                section.copy(items = section.items.sortedByDescending { order.contains(likeKey(it.space, it.unitId)) })
-            }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** The grid layout: a top "liked" group (all liked across the day) then the year groups. */
+    val display: StateFlow<DayDisplay> =
+        combine(_sections, orderKeys) { years, order ->
+            fun liked(item: com.hawwwran.photosonthisday.api.PhotoItem) = order.contains(likeKey(item.space, item.unitId))
+            val likedItems = years.flatMap { y -> y.items.filter(::liked).map { ViewerItem(y.year, it) } }
+            val yearGroups = years
+                .map { y -> y.copy(items = y.items.filterNot(::liked)) }
+                .filter { it.items.isNotEmpty() || (it.loading && it.error == null) }
+            DayDisplay(likedItems, yearGroups)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayDisplay(emptyList(), emptyList()))
 
     /**
      * A snapshot of the shown day as one display-ordered sequence (liked first), for the viewer's
@@ -109,11 +121,11 @@ class DayViewModel(
      */
     fun viewerSnapshot(): List<ViewerItem> {
         val order = orderKeys.value
-        return _sections.value.flatMap { section ->
-            section.items
-                .sortedByDescending { order.contains(likeKey(it.space, it.unitId)) }
-                .map { ViewerItem(section.year, it) }
-        }
+        val years = _sections.value
+        fun liked(item: com.hawwwran.photosonthisday.api.PhotoItem) = order.contains(likeKey(item.space, item.unitId))
+        val likedItems = years.flatMap { y -> y.items.filter(::liked).map { ViewerItem(y.year, it) } }
+        val rest = years.flatMap { y -> y.items.filterNot(::liked).map { ViewerItem(y.year, it) } }
+        return likedItems + rest
     }
 
     private val _refreshing = MutableStateFlow(false)
