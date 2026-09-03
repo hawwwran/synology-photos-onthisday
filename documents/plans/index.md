@@ -10,11 +10,11 @@ dependency column is.
 | [003](003-day-index.md) | Day histogram and day selection | Done | 001 | 12 / 12 |
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
 | [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Done; v1.0.0 cut 2026-09-03 | 004 | 13 / 13 |
-| [006](006-likes.md) | Liking photos, stored on the NAS | Done; six observation boxes dropped (File Station route) | 005, decision 008 | 15 / 21 |
+| [006](006-likes.md) | Liking photos, stored on the NAS | Done; six observation boxes dropped (File Station route) | 005, decision 008 | 16 / 21 |
 | [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Code done 2026-09-03; device checks pending | 005 | 12 / 14 |
-| [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Code done 2026-09-03; instrumented tests and device check pending | 005 | 9 / 12 |
+| [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Done; verified on the Vivo 2026-09-03 | 005 | 12 / 12 |
 | [009](009-likes-hardening.md) | Likes hardening | Code done 2026-09-03; device check pending | 007, 008 | 12 / 13 |
-| [010](010-viewer-save-share-and-update.md) | Viewer, save, share and the update flow | Code done 2026-09-03 (minSdk 29); device checks pending | 005 (run after 007) | 10 / 14 |
+| [010](010-viewer-save-share-and-update.md) | Viewer, save, share and the update flow | Done (minSdk 29); verified on the Vivo 2026-09-03 | 005 (run after 007) | 14 / 14 |
 | [011](011-documentation-logging-and-dead-code.md) | Documentation, the logging rule and dead code | Done 2026-09-03; release cut pending (needs push) | 007-010 | 14 / 14 |
 
 ```

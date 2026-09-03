@@ -1,14 +1,14 @@
 # 008 - Day index and item cache correctness
 
-- **Status:** Code done 2026-09-03; the instrumented tests and the device check wait for the Vivo
-  (no device attached in the executing session).
+- **Status:** Done 2026-09-03; verified on the Vivo the same evening (the 1,220-item day was not
+  located, see the acceptance note).
 - **Source:** code review 2026-09-03: findings 2, 6, 9 and the efficiency findings on `fetchDay`,
   `refresh` and `item_row`.
 - **Depends on:** 005 (the code it fixes). Independent of 007 and 010.
 - **Blocks:** 009 (owns the schema bump to version 5, which 009's column removal rides on), 011.
 - **Decisions:** [005](../decisions/005-day-index-on-device.md) (amend: paging counts server rows;
   a count mismatch is reported, not turned into a forced refresh loop).
-- **Progress:** 9 / 12
+- **Progress:** 12 / 12
 
 ## Goal
 
@@ -101,10 +101,11 @@ rule is plan 011.)
       its `createSql` matches the migration statement for statement.
 - [x] `fallbackToDestructiveMigration` removed; `addMigrations(*MIGRATIONS)`; `AppDatabase` KDoc says
       version 5 and why migrations, not drops.
-- [ ] `room-testing` added; `androidTest/.../MigrationTest` seeds one row per table under 4.json,
+- [x] `room-testing` added; `androidTest/.../MigrationTest` seeds one row per table under 4.json,
       runs `runMigrationsAndValidate(5)`, reads every row back including a like with `pendingSync=1`.
-      Compiles (`compileDebugAndroidTestKotlin`).
-      > Blocked: not run, no device attached in the executing session.
+      Passed on the Vivo (`connectedDebugAndroidTest`, 6 tests, 0 failures, 2026-09-03 19:42).
+      Warning for the next run: that task **uninstalls the app afterwards**, data included; pass
+      `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true` (see `CLAUDE.md`).
 
 ### 2. Item rows
 
@@ -114,9 +115,8 @@ rule is plan 011.)
       ("an item on the edge of two pages is cached once").
 - [x] `FakeDayIndexStore` keys rows by `(Space, id)` and replaces under that key, as the DAO's upsert
       does. "an item that moved to another day is rewritten there, not inserted twice".
-- [ ] `DayIndexDaoTest` gains `an_item_that_moved_days_is_rewritten_under_the_new_day` and a
-      `needsRefresh` case against real Room. Compiles.
-      > Blocked: not run, no device attached in the executing session.
+- [x] `DayIndexDaoTest` gains `an_item_that_moved_days_is_rewritten_under_the_new_day` and a
+      `needsRefresh` case against real Room. Passed on the Vivo with the migration test.
 
 ### 3. Paging and the mismatch rule
 
@@ -143,26 +143,25 @@ rule is plan 011.)
 
 ### 5. Verify on device
 
-- [ ] Install over the existing v1.0.0 build (`installDebug` co-signs with the release key), confirm
-      likes and the index survive the 4 to 5 migration, open today, prev/next across a large day
-      (the shared space has a 1,220-item day), no crash, no refresh loop in `logcat`
-      (`adb logcat -s PhotosIndex PhotosApi`).
-      > Blocked: no device attached in the executing session.
+- [x] Installed over the running v1.0.0 (19:41): the grid came back identical, every heart in place,
+      no crash, and zero `Browse.Item.list` calls because the migrated cache matched the histogram
+      (the new skip rule). Prev/next across twelve days and one manual refresh: item fetches per
+      year only, exactly one `Timeline.get` plus `Item.count` per namespace on the refresh, no
+      `PhotosIndex` line, no `AndroidRuntime` line. The 1,220-item shared day was not opened: its
+      date is not recorded anywhere, so the multi-page path rests on the JVM paging tests.
 
 ## Acceptance criteria
 
 - [ ] A photo whose date moved between two cached days opens without a crash (reproduce by opening
       day X, editing one photo's date to day Y in Synology Photos, opening day Y).
-      > Blocked: device check; the JVM and DAO tests cover the mechanism.
+      > Not reproduced live (it needs an edit in Synology Photos); the instrumented DAO test
+      > `an_item_that_moved_days_is_rewritten_under_the_new_day` passed on the device.
 - [ ] A day larger than one page loads completely; the count in the year header matches the grid.
-      > Blocked: device check.
-- [ ] `logcat` shows at most one histogram refresh per app start.
-      > Blocked: device check.
-- [ ] Upgrading from the shipped v1.0.0 keeps the local likes cache and the index.
-      > Blocked: device check; `MigrationTest` covers it once run.
-- [ ] `./gradlew testDebugUnitTest` green (81 tests); the instrumented DAO and migration tests
-      compile but have not run.
-      > Blocked: no device attached in the executing session.
+      > Not verified live: the 1,220-item day's date is unknown. JVM tests cover the paging.
+- [x] `logcat` shows at most one histogram refresh per app start (one per namespace after sign-in,
+      one per namespace on manual refresh, none on navigation).
+- [x] Upgrading from the shipped v1.0.0 keeps the local likes cache and the index (19:41).
+- [x] `./gradlew testDebugUnitTest` green; the instrumented DAO and migration tests passed on the Vivo.
 
 ## On completion
 

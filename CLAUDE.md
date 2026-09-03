@@ -48,6 +48,10 @@ Full list in `plan.md` §2. The ones easiest to break by accident:
 ./gradlew assembleRelease      # needs the keystore below
 ```
 
+`connectedDebugAndroidTest` **uninstalls the app when it finishes**, and the uninstall takes the
+app's data with it: session, trusted-device id, index, caches (likes are safe on the NAS). Run it
+with `-Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true`, or expect to sign in again.
+
 The Gradle daemon runs on JDK 21 via `org.gradle.java.home` in `gradle.properties`. The
 machine default is Temurin 25, which this AGP line does not support. `local.properties` points
 at `~/Android/Sdk` and is gitignored.

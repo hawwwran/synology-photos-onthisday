@@ -93,7 +93,7 @@ not committed.
 ## Acceptance criteria
 
 - [x] Every rule in plan.md §2 maps to a test or a signed-off item, by name (see the mapping below).
-- [ ] A release APK installs over a debug install without uninstalling.
-      > Blocked: not exercised on the Vivo yet. The mechanism is in place (`app/build.gradle.kts`
-      > co-signs debug with the release key when the keystore is present), so the check is one
-      > `installDebug` over the installed v1.0.0.
+- [x] A release APK installs over a debug install without uninstalling. 2026-09-03 20:06: the
+      published v1.0.1 release APK installed over the co-signed debug build through the in-app
+      updater (`InstallSuccess`), and a debug build installed back over it a minute later. Both
+      directions carry certificate `8e89…e75c`.

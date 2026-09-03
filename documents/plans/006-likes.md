@@ -8,7 +8,7 @@
 - **Decisions it touches:** [001](../decisions/001-web-api-is-the-only-source.md) and plan.md §2
   (both say Synology Photos is read-only), [002](../decisions/002-personal-and-shared-space.md)
   (two namespaces), [006](../decisions/006-one-account-per-install.md) (account-change wipe).
-- **Progress:** 15 / 21 (the six observation boxes in section 1 were dropped, see there)
+- **Progress:** 16 / 21 (the six observation boxes in section 1 were dropped, see there)
 
 ## Goal
 
@@ -196,9 +196,10 @@ Writing must be as disciplined as reading is:
 - [ ] Visible on a second device after a refresh (not tested; the mechanism is the shared NAS file).
       > Blocked: no second device in the executing session of 2026-09-03. Plan 009 made the sync
       > deterministic, so this is now a plain check.
-- [ ] A reinstall, or an account-change wipe and sign back in, restores the likes from the NAS
-      (mechanism in place; not exercised on device yet).
-      > Blocked: no device attached in the executing session of 2026-09-03.
+- [x] A reinstall, or an account-change wipe and sign back in, restores the likes from the NAS.
+      Exercised by accident on 2026-09-03: `connectedDebugAndroidTest` uninstalled the app with its
+      data; after reinstall and sign-in every like was back from `likes.json` (32 hearts on the day
+      shown).
 - [x] Liked items appear first in the day view.
 - [x] Every write the app can make maps, by name, to a like operation; no destructive triple
       exists in the write allowlist (`HardeningTest`).

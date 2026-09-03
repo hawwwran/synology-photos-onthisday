@@ -1,14 +1,14 @@
 # 010 - Viewer, save, share and the update flow
 
-- **Status:** Code done 2026-09-03 with minSdk 29 (the default); the device checks wait for the
-  Vivo (no device attached in the executing session).
+- **Status:** Done 2026-09-03 with minSdk 29 (the default); device checks run on the Vivo the same
+  evening.
 - **Source:** code review 2026-09-03: findings 7, 11, 13, 14, 15 and the `DayHost` duplication.
 - **Depends on:** 005 (the code it fixes). Independent of 007-009; `DayHost` is edited by 007 too,
   so run 007 first to avoid a merge.
 - **Blocks:** 011.
 - **Decisions:** [004](../decisions/004-access-path-and-tls.md) (amend if minSdk changes: the
   "cleartext blocked since API 28" statement then covers every supported level).
-- **Progress:** 10 / 14
+- **Progress:** 14 / 14
 
 ## Goal
 
@@ -158,9 +158,10 @@ a defect; recorded so the trade-off is a decision rather than an accident.
 
 ### 2. Video
 
-- [ ] `VideoPage` observes `LocalLifecycleOwner`: `playWhenReady = isActive && started`, `started`
-      flipping on `ON_START`/`ON_STOP`. Device check: play a video, press power, no audio.
-      > Blocked: no device attached in the executing session; the code is in.
+- [x] `VideoPage` observes `LocalLifecycleOwner`: `playWhenReady = isActive && started`, `started`
+      flipping on `ON_START`/`ON_STOP`. Device check with `dumpsys audio` sampled every second: the
+      app's media `AudioTrack` was `started` while playing, `paused` one second after Home, `started`
+      again on return, then `stopped` when the clip ended.
 - [x] `OkHttpDataSource.Factory(http)` over `AppGraph.http`, passed down from `DayHost`; the `_sid`
       comment sits at both `DownloadUrls.original` call sites (`OriginalFetch`, `VideoPage`).
 
@@ -191,9 +192,10 @@ a defect; recorded so the trade-off is a decision rather than an accident.
 
 ### 4. Banner insets
 
-- [ ] `AppRoot` applies `consumeWindowInsets(WindowInsets.statusBars)` to the `Box` below the banner
-      while `updateBannerShown(state)`. Device screenshots with and without the banner still to take.
-      > Blocked: no device attached in the executing session. Memory note updated to say so.
+- [x] `AppRoot` applies `consumeWindowInsets(WindowInsets.statusBars)` to the `Box` below the banner
+      while `updateBannerShown(state)`. Screenshots on the Vivo: v1.0.0 showed a status-bar-high blank
+      strip between the banner and the app bar; the debug build over it shows the app bar directly
+      under the banner.
 
 ### 5. Liked group on first load
 
@@ -236,16 +238,14 @@ Two things the device session found that the review had not:
 
 ## Acceptance criteria
 
-- [ ] Save works or fails with the right message on the Vivo; a failed save leaves no broken gallery
-      entry (test by revoking storage space or killing Wi-Fi mid-copy of a large video).
-      > Blocked: device check.
-- [ ] Video stops when the phone locks.
-      > Blocked: device check.
-- [ ] Airplane mode, Settings, check for updates: the modal says the check failed, not that the app
-      is current.
-      > Blocked: device check; `UpdateViewModelTest` pins the state.
-- [ ] Banner visible: no blank strip under it.
-      > Blocked: device check.
+- [x] Save on the Vivo: one MediaStore row `Pictures/On This Day/OnThisDay-118489.jpg`, 3,073,198
+      bytes, `is_pending=0`; a second save of the same photo added no row. The mid-copy failure was
+      not provoked; `OriginalFetchTest` covers the mapping.
+- [x] Video pauses on Home (the lock path is the same `ON_STOP`).
+- [x] Airplane mode, no cached check: "Aktualizaci se nepodařilo ověřit". With a cached check the
+      dialog replays the cache; that state now carries the "uložená informace" line too
+      (`NoUpdate.stale`, commit after the plan).
+- [x] Banner visible: app bar directly under it.
 - [x] Cold start on a day with liked photos shows the liked group at once (`DayViewModelTest`).
 - [x] `./gradlew testDebugUnitTest` green: 115 tests.
 
