@@ -82,7 +82,8 @@ this is personal work.
 ## Icon
 
 `app/src/main/res/drawable/ic_launcher_foreground.xml` is one petal path rotated four times
-around (54, 54). Three petals warm, one white for the day being shown.
+around (54, 54). Up is white for the day being shown, left and right are warm (rose, amber), and
+the down petal is turquoise, the one cool note.
 
 The petal tapers to a point at the centre and rounds off outward. Pointed the other way it
 reads as a spike rather than a flower, which is what the first attempt looked like. Body radius
