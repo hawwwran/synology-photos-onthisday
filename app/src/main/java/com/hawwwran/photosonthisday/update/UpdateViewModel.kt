@@ -151,7 +151,7 @@ class UpdateViewModel(
             _state.value = when (val outcome = checker.check(force)) {
                 is CheckOutcome.Found ->
                     if (outcome.info.isNewer) UpdateUiState.Available(outcome.info, dismissed = prefs.isDismissed(outcome.info.latestVersion))
-                    else UpdateUiState.NoUpdate(currentVersion)
+                    else UpdateUiState.NoUpdate(currentVersion, stale = outcome.info.stale)
                 CheckOutcome.NoRelease -> UpdateUiState.NoUpdate(currentVersion)
                 CheckOutcome.Unreachable -> UpdateUiState.CheckFailed
             }

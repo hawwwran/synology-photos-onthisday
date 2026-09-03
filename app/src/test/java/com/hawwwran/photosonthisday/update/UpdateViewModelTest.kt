@@ -73,6 +73,15 @@ class UpdateViewModelTest {
     }
 
     @Test
+    fun `an offline check answered from the cache says so`() = runTest {
+        outcome = CheckOutcome.Found(info.copy(latestVersion = "1.0.0", isNewer = false, stale = true))
+
+        viewModel.onForceCheck()
+
+        assertEquals(UpdateUiState.NoUpdate("1.0.0", stale = true), viewModel.state.value)
+    }
+
+    @Test
     fun `a missing install permission keeps the modal, the file and the state, and resumes once granted`() = runTest {
         outcome = CheckOutcome.Found(info)
         viewModel.onForceCheck()

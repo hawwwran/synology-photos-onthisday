@@ -23,7 +23,9 @@ enum class UpdateFailure {
 /** UI states for the update flow; drives both the Settings entry and the modal. */
 sealed interface UpdateUiState {
     data object Idle : UpdateUiState
-    data class NoUpdate(val currentVersion: String) : UpdateUiState
+
+    /** Nothing newer is known. [stale] when that comes from the cache because GitHub could not be reached. */
+    data class NoUpdate(val currentVersion: String, val stale: Boolean = false) : UpdateUiState
 
     /** The check could not reach GitHub and nothing is cached, so nothing is known. Not "up to date". */
     data object CheckFailed : UpdateUiState

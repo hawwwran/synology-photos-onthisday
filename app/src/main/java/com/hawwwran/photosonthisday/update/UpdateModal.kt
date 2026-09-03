@@ -68,7 +68,16 @@ private fun BodyContent(state: UpdateUiState, onOpenPlayProtect: () -> Unit) {
     when (state) {
         UpdateUiState.Idle -> Text(stringResource(R.string.update_body_idle))
         is UpdateUiState.Checking -> CircularProgressIndicator()
-        is UpdateUiState.NoUpdate -> Text(stringResource(R.string.update_body_uptodate, state.currentVersion))
+        is UpdateUiState.NoUpdate -> {
+            Text(stringResource(R.string.update_body_uptodate, state.currentVersion))
+            if (state.stale) {
+                Text(
+                    stringResource(R.string.update_body_stale),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         UpdateUiState.CheckFailed -> Text(stringResource(R.string.update_body_check_failed))
         is UpdateUiState.Available -> {
             Text(
