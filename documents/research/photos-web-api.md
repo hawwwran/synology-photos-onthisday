@@ -266,6 +266,27 @@ access log. DSM also reads the session from a cookie named `id`, and the token f
 `SynoToken` query parameter; if the cookie form works, thumbnail URLs can carry nothing secret
 at all.
 
+## File Station, for the app's own likes file (decision 008)
+
+Verified on the owner's account 2026-09-03, through the app.
+
+- **`SYNO.FileStation.Download` `download` v2**, GET, `path=<folder>/likes.json&mode=download`,
+  session in the query and the token in the header. A file that is not there answers **HTTP 404**
+  on this DSM, and a folder that is not there answers a JSON envelope with **error 408** ("no such
+  file or directory"); the app treats both as "no likes yet". A real download carries the file
+  bytes, and the body's shape decides, not the `Content-Disposition` header.
+- **`SYNO.FileStation.Upload` `upload` v2**, multipart POST with `path`, `create_parents=true`,
+  `overwrite=true` and the file part last. **`create_parents` does create the destination folder**:
+  a sync pointed at `/home/OtdProbe1`, a folder that had never existed, answered 408 on the download
+  and `success` on the upload, and the folder plus the file were there afterwards. This closes the
+  one untested step of plan 006, the first run of a new account.
+- What the account needs for this to work: the user home service on (Control Panel, User & Group,
+  Advanced) so `/home` exists, and File Station allowed for the account (the account's Applications
+  tab). Without the second, every call answers 105. A shared folder the account can write works
+  instead of `/home`, and is what the folder setting is for.
+- Error codes here are File Station's own, not the Auth ones: 407 is "operation not permitted"
+  rather than the login's auto-block, which is why `DsmErrorText` picks its table from the api.
+
 ## U5. Taken time
 
 `time` is epoch **seconds**. `indexed_time` is epoch **milliseconds**. Do not mix them up when

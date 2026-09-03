@@ -192,7 +192,10 @@ Writing must be as disciplined as reading is:
 ## Acceptance criteria
 
 - [x] Liking an item writes `likes.json` to the NAS; sync reads it back (verified on device: File
-      Station Download and Upload both ok, "sync ok").
+      Station Download and Upload both ok, "sync ok"). The first run of a new account, where the
+      folder does not exist yet, was verified separately on 2026-09-03: pointed at a folder that had
+      never existed, the download answered 408 and the upload created the folder and the file
+      (`create_parents=true`). Recorded in the research doc.
 - [ ] Visible on a second device after a refresh (not tested; the mechanism is the shared NAS file).
       > Blocked: no second device in the executing session of 2026-09-03. Plan 009 made the sync
       > deterministic, so this is now a plain check.
