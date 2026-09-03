@@ -233,20 +233,36 @@ private fun DayGrid(
             val header = section.header
             val groupKey = when (header) {
                 DaySectionHeader.Liked -> "liked"
+                is DaySectionHeader.LikedYear -> "liked-y${header.year}"
                 is DaySectionHeader.Year -> "y${header.year}"
             }
             fullWidth {
-                Column(Modifier.padding(top = 12.dp, bottom = 4.dp)) {
-                    val title = when (header) {
-                        DaySectionHeader.Liked -> stringResource(R.string.liked_header)
-                        is DaySectionHeader.Year -> header.year.toString()
+                Row(
+                    Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val liked = header is DaySectionHeader.Liked || header is DaySectionHeader.LikedYear
+                    if (liked) {
+                        Icon(
+                            Icons.Filled.Favorite,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(end = 6.dp).size(18.dp),
+                        )
                     }
-                    Text(title, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        pluralStringResource(R.plurals.day_photo_count, section.items.size, section.items.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Column {
+                        val title = when (header) {
+                            DaySectionHeader.Liked -> stringResource(R.string.liked_header)
+                            is DaySectionHeader.LikedYear -> header.year.toString()
+                            is DaySectionHeader.Year -> header.year.toString()
+                        }
+                        Text(title, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            pluralStringResource(R.plurals.day_photo_count, section.items.size, section.items.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             if (section.items.isEmpty() && section.loading) {
