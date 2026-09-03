@@ -1,40 +1,36 @@
 package com.hawwwran.photosonthisday.update
 
 import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.hawwwran.photosonthisday.AppGraph
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 /**
  * Activity-scoped view model for the update flow. Two cancellation domains: [checkJob] (the
  * version check, cancelled when the activity backgrounds) and [downloadJob] (the APK download,
  * kept alive across a minimize by the downloader's wake lock; only the user's Cancel stops it).
+ * The collaborators are interfaces so the state machine is tested on the JVM; [factory] wires the
+ * real ones over the app's HTTP client.
  */
-class UpdateViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val app = application
-    private val prefs = UpdatePrefs(application)
-
-    private val currentVersion: String = try {
-        application.packageManager.getPackageInfo(application.packageName, 0).versionName ?: "0.0.0"
-    } catch (_: Exception) {
-        "0.0.0"
-    }
-
-    private val checker = UpdateChecker(
-        cacheFile = File(application.cacheDir, "update-check.json"),
-        currentVersion = currentVersion,
-    )
-    private val downloader = UpdateDownloader.forContext(application)
+class UpdateViewModel(
+    private val checker: UpdateChecking,
+    private val downloader: UpdateDownloading,
+    private val installer: UpdateInstalling,
+    private val prefs: SkippedVersions,
+    private val currentVersion: String,
+) : ViewModel() {
 
     private val _state = MutableStateFlow<UpdateUiState>(UpdateUiState.Idle)
     val state: StateFlow<UpdateUiState> = _state.asStateFlow()
@@ -45,10 +41,20 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
     private var checkJob: Job? = null
     private var downloadJob: Job? = null
 
-    /** Auto-check on resume. A no-op cache hit within 24 h; never opens the modal. */
+    /**
+     * On resume. Back from the install-permission page with the permission granted, the install
+     * continues with the file already downloaded. Otherwise a rate-limited check (a no-op cache hit
+     * within 24 h) that never opens the modal.
+     */
     fun onAppOpen() {
-        val s = _state.value
-        if (s is UpdateUiState.Checking || s is UpdateUiState.Downloading || s is UpdateUiState.Launching) return
+        when (val s = _state.value) {
+            is UpdateUiState.NeedsPermission -> {
+                if (installer.canInstall()) startInstall(s.info, s.file)
+                return
+            }
+            is UpdateUiState.Checking, is UpdateUiState.Downloading, is UpdateUiState.Launching -> return
+            else -> {}
+        }
         checkJob?.cancel()
         checkJob = viewModelScope.launch { runCheck(force = false, openModalOnDone = false) }
     }
@@ -84,69 +90,78 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         _state.value = UpdateUiState.Available(info, dismissed = true)
     }
 
-    /** User tapped Install. Downloads the APK, then fires the system installer. */
+    /**
+     * User tapped Install. Downloads the APK (or reuses a complete one), then fires the system
+     * installer. From [UpdateUiState.NeedsPermission] it retries the install, which reopens the
+     * permission page if it is still missing.
+     */
     fun onInstall() {
-        val info = (_state.value as? UpdateUiState.Available)?.info ?: return
+        when (val s = _state.value) {
+            is UpdateUiState.NeedsPermission -> startInstall(s.info, s.file)
+            is UpdateUiState.Available -> startDownload(s.info)
+            else -> return
+        }
+    }
+
+    private fun startDownload(info: UpdateInfo) {
         downloadJob?.cancel()
         downloadJob = viewModelScope.launch {
             try {
                 _state.value = UpdateUiState.Downloading(info, 0f, 0L, 0L)
-                downloader.download(info.apkUrl, info.latestVersion).collect { event ->
+                downloader.download(info.apkUrl, info.latestVersion, info.apkSize).collect { event ->
                     when (event) {
                         is UpdateDownloader.DownloadProgress.Started -> {}
                         is UpdateDownloader.DownloadProgress.Progress -> {
                             val pct = if (event.total > 0) event.bytesRead.toFloat() / event.total else 0f
                             _state.value = UpdateUiState.Downloading(info, pct, event.bytesRead, event.total)
                         }
-                        is UpdateDownloader.DownloadProgress.Done -> {
-                            _state.value = UpdateUiState.Launching(info)
-                            val outcome = withContext(Dispatchers.Main) { Installer.installApk(app, event.file) }
-                            handleInstallOutcome(outcome)
-                        }
-                        is UpdateDownloader.DownloadProgress.Failed ->
-                            _state.value = UpdateUiState.Error(event.reason)
+                        is UpdateDownloader.DownloadProgress.Done -> startInstall(info, event.file)
+                        is UpdateDownloader.DownloadProgress.Failed -> _state.value = UpdateUiState.Error(event.reason)
                     }
                 }
             } catch (e: CancellationException) {
                 _state.value = UpdateUiState.Available(info, dismissed = prefs.isDismissed(info.latestVersion))
                 throw e
-            } catch (e: Exception) {
-                _state.value = UpdateUiState.Error(e.message ?: "Update failed")
             }
         }
     }
 
-    private suspend fun handleInstallOutcome(outcome: Installer.InstallStartOutcome) {
-        when (outcome) {
-            Installer.InstallStartOutcome.LAUNCHED,
-            Installer.InstallStartOutcome.MISSING_PERMISSION -> {
-                delay(LAUNCHING_TO_IDLE_DELAY_MS)
-                _state.value = UpdateUiState.Idle
-                _modalOpen.value = false
+    /** Main thread: the view model scope. */
+    private fun startInstall(info: UpdateInfo, file: File) {
+        _state.value = UpdateUiState.Launching(info)
+        viewModelScope.launch {
+            when (installer.install(file)) {
+                Installer.InstallStartOutcome.LAUNCHED -> {
+                    delay(LAUNCHING_TO_IDLE_DELAY_MS)
+                    _state.value = UpdateUiState.Idle
+                    _modalOpen.value = false
+                }
+                Installer.InstallStartOutcome.MISSING_PERMISSION -> {
+                    _state.value = UpdateUiState.NeedsPermission(info, file)
+                    _modalOpen.value = true
+                }
+                Installer.InstallStartOutcome.FILE_GONE -> _state.value = UpdateUiState.Error(UpdateFailure.FILE_GONE)
+                Installer.InstallStartOutcome.ERROR -> _state.value = UpdateUiState.Error(UpdateFailure.INSTALLER)
             }
-            Installer.InstallStartOutcome.FILE_GONE ->
-                _state.value = UpdateUiState.Error("Downloaded file missing")
-            Installer.InstallStartOutcome.ERROR ->
-                _state.value = UpdateUiState.Error("Could not start installer")
         }
     }
 
     private suspend fun runCheck(force: Boolean, openModalOnDone: Boolean) {
         try {
-            val info = checker.check(force = force)
-            _state.value = when {
-                info == null -> UpdateUiState.NoUpdate(currentVersion)
-                info.isNewer -> UpdateUiState.Available(info, dismissed = prefs.isDismissed(info.latestVersion))
-                else -> UpdateUiState.NoUpdate(info.currentVersion)
+            _state.value = when (val outcome = checker.check(force)) {
+                is CheckOutcome.Found ->
+                    if (outcome.info.isNewer) UpdateUiState.Available(outcome.info, dismissed = prefs.isDismissed(outcome.info.latestVersion))
+                    else UpdateUiState.NoUpdate(currentVersion)
+                CheckOutcome.NoRelease -> UpdateUiState.NoUpdate(currentVersion)
+                CheckOutcome.Unreachable -> UpdateUiState.CheckFailed
             }
             if (openModalOnDone) _modalOpen.value = true
-            prefs.lastCheckAt = System.currentTimeMillis()
         } catch (e: CancellationException) {
             val current = _state.value
             if (current is UpdateUiState.Checking) _state.value = current.previous
             throw e
-        } catch (e: Exception) {
-            _state.value = UpdateUiState.Error(e.message ?: "Update check failed")
+        } catch (e: IOException) {
+            _state.value = UpdateUiState.CheckFailed
         }
     }
 
@@ -155,7 +170,29 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         return if (s is UpdateUiState.Checking) s.previous else s
     }
 
-    private companion object {
-        const val LAUNCHING_TO_IDLE_DELAY_MS = 800L
+    companion object {
+        private const val LAUNCHING_TO_IDLE_DELAY_MS = 800L
+
+        /** The real collaborators, over the app's HTTP client. */
+        fun factory(application: Application, graph: AppGraph): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val currentVersion = try {
+                    application.packageManager.getPackageInfo(application.packageName, 0).versionName ?: "0.0.0"
+                } catch (_: android.content.pm.PackageManager.NameNotFoundException) {
+                    "0.0.0"
+                }
+                UpdateViewModel(
+                    checker = UpdateChecker(
+                        cacheFile = File(application.cacheDir, "update-check.json"),
+                        currentVersion = currentVersion,
+                        appClient = graph.http,
+                    ),
+                    downloader = UpdateDownloader.forContext(application, graph.http),
+                    installer = Installer.forContext(application),
+                    prefs = UpdatePrefs(application),
+                    currentVersion = currentVersion,
+                )
+            }
+        }
     }
 }

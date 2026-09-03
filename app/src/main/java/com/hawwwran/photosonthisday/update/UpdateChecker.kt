@@ -4,12 +4,20 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.longOrNull
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
-import org.json.JSONArray
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -30,32 +38,34 @@ import kotlin.coroutines.resume
 class UpdateChecker(
     private val cacheFile: File,
     private val currentVersion: String,
+    /** Derived from the app's client, so its TLS and no-retry rules hold; GitHub's API does not redirect. */
+    appClient: OkHttpClient,
     private val baseUrl: String = DEFAULT_BASE_URL,
-    httpClient: OkHttpClient? = null,
     private val now: () -> Long = { System.currentTimeMillis() },
-) {
-    private val client: OkHttpClient = httpClient ?: OkHttpClient.Builder()
+    private val json: Json = Json { ignoreUnknownKeys = true },
+) : UpdateChecking {
+    private val client: OkHttpClient = appClient.newBuilder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.SECONDS)
         .writeTimeout(5, TimeUnit.SECONDS)
         .callTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    suspend fun check(force: Boolean = false): UpdateInfo? {
+    override suspend fun check(force: Boolean): CheckOutcome {
         val cached = withContext(Dispatchers.IO) { readCache() }
         if (!force && cached != null && (now() - cached.fetchedAt) in 0 until CACHE_TTL_MS) {
-            return buildInfo(cached, stale = false)
+            return outcome(cached, stale = false)
         }
         return executeAndProcess(buildRequest(cached?.lastModified), cached)
     }
 
-    private suspend fun executeAndProcess(request: Request, cached: CachedRelease?): UpdateInfo? =
+    private suspend fun executeAndProcess(request: Request, cached: CachedRelease?): CheckOutcome =
         suspendCancellableCoroutine { cont ->
             val call = client.newCall(request)
             cont.invokeOnCancellation { runCatching { call.cancel() } }
             call.enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
-                    if (cont.isActive) cont.resume(cached?.let { buildInfo(it, stale = true) })
+                    if (cont.isActive) cont.resume(fallback(cached))
                 }
 
                 override fun onResponse(call: Call, response: Response) {
@@ -63,37 +73,41 @@ class UpdateChecker(
                         response.close()
                         return
                     }
-                    val info = try {
+                    val result = try {
                         response.use { processResponse(it, cached) }
                     } catch (_: IOException) {
-                        cached?.let { buildInfo(it, stale = true) }
+                        fallback(cached)
                     } catch (e: CancellationException) {
                         if (cont.isActive) cont.cancel(e)
                         return
                     }
-                    if (cont.isActive) cont.resume(info)
+                    if (cont.isActive) cont.resume(result)
                 }
             })
         }
 
-    private fun processResponse(resp: Response, cached: CachedRelease?): UpdateInfo? = when (resp.code) {
+    /** No usable answer: replay the cache as stale, or admit nothing is known. */
+    private fun fallback(cached: CachedRelease?): CheckOutcome =
+        cached?.let { outcome(it, stale = true) } ?: CheckOutcome.Unreachable
+
+    private fun processResponse(resp: Response, cached: CachedRelease?): CheckOutcome = when (resp.code) {
         304 -> cached?.let {
             writeCache(it.copy(fetchedAt = now()))
-            buildInfo(it, stale = false)
-        }
+            outcome(it, stale = false)
+        } ?: CheckOutcome.Unreachable
         200 -> handleOk(resp, cached)
-        else -> cached?.let { buildInfo(it, stale = true) }
+        else -> fallback(cached)
     }
 
-    private fun handleOk(resp: Response, cached: CachedRelease?): UpdateInfo? {
-        val body = resp.body?.string()
-        if (body.isNullOrEmpty()) return cached?.let { buildInfo(it, stale = true) }
+    private fun handleOk(resp: Response, cached: CachedRelease?): CheckOutcome {
+        val body = resp.body.string()
+        if (body.isEmpty()) return fallback(cached)
         // A page with no matching release is not a reason to drop a good cache: leave it and
-        // return null so no update is surfaced either way.
-        val parsed = parseRelease(body) ?: return null
+        // report that there is nothing to update to.
+        val parsed = parseRelease(body) ?: return CheckOutcome.NoRelease
         val fresh = CachedRelease(now(), resp.header("Last-Modified") ?: "", parsed)
         writeCache(fresh)
-        return buildInfo(fresh, stale = false)
+        return outcome(fresh, stale = false)
     }
 
     private fun buildRequest(lastModified: String?): Request {
@@ -105,69 +119,59 @@ class UpdateChecker(
         return builder.build()
     }
 
-    private fun buildInfo(cached: CachedRelease, stale: Boolean): UpdateInfo? {
+    private fun outcome(cached: CachedRelease, stale: Boolean): CheckOutcome {
         val r = cached.release
-        if (!r.tagName.startsWith(TAG_PREFIX) || r.apkUrl.isEmpty()) return null
+        if (!r.tagName.startsWith(TAG_PREFIX) || r.apkUrl.isEmpty()) return CheckOutcome.NoRelease
         val latest = r.tagName.removePrefix(TAG_PREFIX)
-        return UpdateInfo(
-            currentVersion = currentVersion,
-            latestVersion = latest,
-            releaseUrl = r.htmlUrl,
-            apkUrl = r.apkUrl,
-            releaseNotes = r.body,
-            isNewer = isNewerVersion(latest, currentVersion),
-            stale = stale,
+        return CheckOutcome.Found(
+            UpdateInfo(
+                currentVersion = currentVersion,
+                latestVersion = latest,
+                apkUrl = r.apkUrl,
+                apkSize = r.apkSize,
+                releaseNotes = r.body,
+                isNewer = isNewerVersion(latest, currentVersion),
+                stale = stale,
+            ),
         )
     }
 
-    private fun parseRelease(body: String): ParsedRelease? = try {
-        val arr = JSONArray(body)
-        var found: ParsedRelease? = null
-        var i = 0
-        while (i < arr.length() && found == null) {
-            val item = arr.optJSONObject(i)
-            if (item != null && !item.optBoolean("draft", false) && !item.optBoolean("prerelease", false)) {
-                val tag = item.optString("tag_name", "")
-                val apkUrl = extractApkUrl(item.optJSONArray("assets"))
-                if (tag.startsWith(TAG_PREFIX) && apkUrl != null) {
-                    found = ParsedRelease(tag, item.optString("html_url", ""), apkUrl, item.optString("body", ""))
-                }
-            }
-            i++
+    /** The newest non-draft, non-prerelease `v*` release that carries an `.apk` asset. */
+    private fun parseRelease(body: String): ParsedRelease? {
+        val releases = try {
+            json.parseToJsonElement(body) as? JsonArray ?: return null
+        } catch (_: SerializationException) {
+            return null
+        } catch (_: IllegalArgumentException) {
+            return null
         }
-        found
-    } catch (_: Exception) {
-        null
-    }
-
-    private fun extractApkUrl(assets: JSONArray?): String? {
-        if (assets == null) return null
-        for (i in 0 until assets.length()) {
-            val asset = assets.optJSONObject(i) ?: continue
-            if (asset.optString("name", "").endsWith(".apk", ignoreCase = true)) {
-                val url = asset.optString("browser_download_url", "")
-                if (url.isNotEmpty()) return url
-            }
+        for (element in releases) {
+            val release = element as? JsonObject ?: continue
+            if (release.bool("draft") || release.bool("prerelease")) continue
+            val tag = release.string("tag_name")
+            if (!tag.startsWith(TAG_PREFIX)) continue
+            val apk = (release["assets"] as? JsonArray)
+                ?.mapNotNull { it as? JsonObject }
+                ?.firstOrNull { it.string("name").endsWith(".apk", ignoreCase = true) && it.string("browser_download_url").isNotEmpty() }
+                ?: continue
+            return ParsedRelease(tag, apk.string("browser_download_url"), apk.long("size"), release.string("body"))
         }
         return null
     }
 
+    private fun JsonObject.string(key: String): String = (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
+    private fun JsonObject.bool(key: String): Boolean = (this[key] as? JsonPrimitive)?.booleanOrNull ?: false
+    private fun JsonObject.long(key: String): Long = (this[key] as? JsonPrimitive)?.longOrNull ?: 0L
+
     private fun readCache(): CachedRelease? {
         if (!cacheFile.exists()) return null
         return try {
-            val obj = org.json.JSONObject(cacheFile.readText())
-            val release = obj.optJSONObject("release") ?: return null
-            CachedRelease(
-                fetchedAt = obj.optLong("fetched_at", 0L),
-                lastModified = obj.optString("last_modified", ""),
-                release = ParsedRelease(
-                    tagName = release.optString("tag_name", ""),
-                    htmlUrl = release.optString("html_url", ""),
-                    apkUrl = release.optString("apk_url", ""),
-                    body = release.optString("body", ""),
-                ),
-            )
-        } catch (_: Exception) {
+            json.decodeFromString(CachedRelease.serializer(), cacheFile.readText())
+        } catch (_: SerializationException) {
+            null // a cache from an older build or a torn write: the next check re-fetches
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: IOException) {
             null
         }
     }
@@ -175,25 +179,19 @@ class UpdateChecker(
     private fun writeCache(cached: CachedRelease) {
         try {
             cacheFile.parentFile?.mkdirs()
-            val release = org.json.JSONObject()
-                .put("tag_name", cached.release.tagName)
-                .put("html_url", cached.release.htmlUrl)
-                .put("apk_url", cached.release.apkUrl)
-                .put("body", cached.release.body)
-            val payload = org.json.JSONObject()
-                .put("fetched_at", cached.fetchedAt)
-                .put("last_modified", cached.lastModified)
-                .put("release", release)
             val tmp = File(cacheFile.absolutePath + ".tmp")
-            tmp.writeText(payload.toString())
+            tmp.writeText(json.encodeToString(CachedRelease.serializer(), cached))
             tmp.renameTo(cacheFile)
-        } catch (_: Exception) {
+        } catch (_: IOException) {
             // Best-effort: a failed write just means the next check re-fetches.
         }
     }
 
-    private data class CachedRelease(val fetchedAt: Long, val lastModified: String, val release: ParsedRelease)
-    private data class ParsedRelease(val tagName: String, val htmlUrl: String, val apkUrl: String, val body: String)
+    @Serializable
+    private data class CachedRelease(val fetchedAt: Long, val lastModified: String = "", val release: ParsedRelease)
+
+    @Serializable
+    private data class ParsedRelease(val tagName: String, val apkUrl: String, val apkSize: Long = 0, val body: String = "")
 
     companion object {
         private const val DEFAULT_BASE_URL = "https://api.github.com"

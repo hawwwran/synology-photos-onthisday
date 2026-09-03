@@ -33,9 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.SingletonImageLoader
 import com.hawwwran.photosonthisday.R
+import com.hawwwran.photosonthisday.ui.formatBytes
 import com.hawwwran.photosonthisday.update.UpdateUiState
 import com.hawwwran.photosonthisday.update.UpdateViewModel
 import kotlinx.coroutines.Dispatchers
@@ -58,6 +58,8 @@ fun SettingsScreen(
     likedByYear: Boolean,
     onLikedByYearChange: (Boolean) -> Unit,
     onClearCache: suspend () -> Unit,
+    /** The activity-scoped instance that drives the banner and modal in `AppRoot`. */
+    updateViewModel: UpdateViewModel,
     onBack: () -> Unit,
     onSignOut: () -> Unit,
 ) {
@@ -119,17 +121,14 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_clear_cache))
             }
             HorizontalDivider()
-            // Version and updates. The update view model is activity-scoped, so this is the same
-            // instance that drives the banner and modal in AppRoot.
-            val updateVm: UpdateViewModel = viewModel()
-            val updateState by updateVm.state.collectAsState()
+            val updateState by updateViewModel.state.collectAsState()
             val versionName = remember {
                 runCatching {
                     context.packageManager.getPackageInfo(context.packageName, 0).versionName
                 }.getOrNull() ?: "?"
             }
             Setting(stringResource(R.string.settings_version, versionName), updateSubtitle(updateState))
-            OutlinedButton(onClick = updateVm::onForceCheck) {
+            OutlinedButton(onClick = updateViewModel::onForceCheck) {
                 Text(stringResource(R.string.update_check_now))
             }
             HorizontalDivider()
@@ -144,9 +143,11 @@ private fun updateSubtitle(state: UpdateUiState): String = when (state) {
         if (state.dismissed) stringResource(R.string.update_sub_available_skipped, state.info.latestVersion)
         else stringResource(R.string.update_sub_available, state.info.latestVersion)
     is UpdateUiState.NoUpdate -> stringResource(R.string.update_sub_uptodate)
+    UpdateUiState.CheckFailed -> stringResource(R.string.update_sub_error)
     is UpdateUiState.Checking -> stringResource(R.string.update_title_checking)
     is UpdateUiState.Downloading -> stringResource(R.string.update_title_downloading)
     is UpdateUiState.Launching -> stringResource(R.string.update_body_launching)
+    is UpdateUiState.NeedsPermission -> stringResource(R.string.update_title_needs_permission)
     is UpdateUiState.Error -> stringResource(R.string.update_sub_error)
     UpdateUiState.Idle -> stringResource(R.string.update_sub_idle)
 }
@@ -157,10 +158,4 @@ private fun Setting(label: String, value: String) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, style = MaterialTheme.typography.bodyLarge)
     }
-}
-
-private fun formatBytes(bytes: Long): String = when {
-    bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)
-    bytes >= 1_000 -> "%.0f kB".format(bytes / 1_000.0)
-    else -> "$bytes B"
 }

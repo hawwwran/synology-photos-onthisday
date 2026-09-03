@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
@@ -328,7 +329,11 @@ class DayViewModel(
     }
 
     private suspend fun loadSections(monthDay: MonthDay, years: List<DayBucket>, force: Boolean) = coroutineScope {
-        orderKeys.value = likedKeys.value // freeze the liked-first order for this day visit
+        // Freeze the liked-first order for this day visit. Read from the DAO, not from likedKeys:
+        // that StateFlow starts with the first screen subscriber, after the first frame, and on a
+        // cold start this runs before it, so its value would still be the empty initial set and
+        // the liked group would be missing until the day reloaded.
+        orderKeys.value = likes.likedKeys.first()
         _sections.value = years.map { YearSection(it.year, it.itemCount) }
         years.forEach { yearBucket ->
             val year = yearBucket.year

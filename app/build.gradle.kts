@@ -13,7 +13,9 @@ android {
 
     defaultConfig {
         applicationId = "com.hawwwran.photosonthisday"
-        minSdk = 26
+        // 29: MediaStore saves need no storage permission, and the platform blocks cleartext on
+        // every supported level (decision 004, amended 2026-09-03). Household phones are newer.
+        minSdk = 29
         targetSdk = 35
         versionCode = 3
         versionName = "1.0.1"
@@ -68,6 +70,13 @@ android {
         compose = true
     }
 
+    // From minSdk 28 AGP packages dex uncompressed (Android runs it in place, saving the install-time
+    // copy), which tripled the APK from 24 to 74 MB. The APK travels over GitHub and the in-app
+    // updater on a phone connection, so the download size wins: keep dex compressed as before.
+    packaging {
+        dex { useLegacyPackaging = true }
+    }
+
     // Room exports the schema to app/schemas so a future migration has a baseline to diff.
     // The androidTest source set reads it back to verify migrations on a device.
     sourceSets {
@@ -112,6 +121,7 @@ dependencies {
 
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.ui)
+    implementation(libs.media3.datasource.okhttp)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

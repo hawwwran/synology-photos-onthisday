@@ -3,7 +3,6 @@ package com.hawwwran.photosonthisday.ui.day
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import androidx.core.content.FileProvider
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
@@ -16,24 +15,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import java.time.LocalDate
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.hawwwran.photosonthisday.AppGraph
 import com.hawwwran.photosonthisday.R
+import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.data.DayIndexRepository
+import com.hawwwran.photosonthisday.data.FetchFailure
 import com.hawwwran.photosonthisday.data.SaveResult
 import com.hawwwran.photosonthisday.data.ShareResult
+import com.hawwwran.photosonthisday.data.fileProviderAuthority
 import com.hawwwran.photosonthisday.session.Session
 import com.hawwwran.photosonthisday.session.SessionStore
+import com.hawwwran.photosonthisday.update.UpdateViewModel
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 /** Which of the signed-in screens is showing. Reset to the grid on any account change (new host). */
 private sealed interface DayNav {
@@ -52,7 +56,7 @@ private sealed interface DayNav {
  * DSM's 119 (plan 007). A view model tied to one [session] must die with it.
  */
 @Composable
-fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
+fun DayHost(graph: AppGraph, session: Session, updateViewModel: UpdateViewModel, onSignOut: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val storeOwner = remember(session) { DayViewModelStoreOwner() }
@@ -94,8 +98,60 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+
     var saving by remember { mutableStateOf(false) }
     var sharing by remember { mutableStateOf(false) }
+    fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    fun reasonText(reason: FetchFailure) = context.getString(reason.stringId())
+
+    // One save path and one share path for the viewer (one item) and the grid selection (many).
+    val saveItems: (List<PhotoItem>) -> Unit = { items ->
+        if (!saving && items.isNotEmpty()) scope.launch {
+            saving = true
+            val results = items.map { graph.imageSaver.save(session.baseUrl, it.space, it.unitId, auth.sid, auth.token) }
+            saving = false
+            viewModel.clearSelection()
+            val saved = results.count { it is SaveResult.Success }
+            val firstFailure = results.filterIsInstance<SaveResult.Failed>().firstOrNull()
+            toast(
+                when {
+                    items.size == 1 && firstFailure != null -> reasonText(firstFailure.reason)
+                    items.size == 1 -> context.getString(R.string.viewer_saved)
+                    else -> context.getString(R.string.selection_saved, saved, items.size)
+                },
+            )
+        }
+    }
+    val shareItems: (List<PhotoItem>) -> Unit = { items ->
+        if (!sharing && items.isNotEmpty()) scope.launch {
+            sharing = true
+            val results = items.map { graph.mediaSharer.prepare(session.baseUrl, it.space, it.unitId, auth.sid, auth.token) }
+            sharing = false
+            viewModel.clearSelection()
+            val ready = results.filterIsInstance<ShareResult.Ready>()
+            if (ready.isEmpty()) {
+                val reason = results.filterIsInstance<ShareResult.Failed>().firstOrNull()?.reason
+                toast(if (reason != null) reasonText(reason) else context.getString(R.string.selection_share_failed))
+            } else {
+                val authority = fileProviderAuthority(context)
+                val uris = ArrayList<Uri>(ready.map { FileProvider.getUriForFile(context, authority, it.file) })
+                val mimes = ready.map { it.mime }.toSet()
+                val send = if (uris.size == 1) {
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = mimes.single()
+                        putExtra(Intent.EXTRA_STREAM, uris.single())
+                    }
+                } else {
+                    Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                        type = mimes.singleOrNull() ?: commonMime(mimes)
+                        putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                    }
+                }
+                send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(Intent.createChooser(send, context.getString(R.string.viewer_share)))
+            }
+        }
+    }
 
     when (val current = nav) {
         DayNav.Grid -> DayScreen(
@@ -106,46 +162,8 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
             onOpenPhoto = { index -> nav = DayNav.Viewer(index) },
             onOpenSettings = { nav = DayNav.Settings },
             onSignOut = onSignOut,
-            onDownloadSelected = { items ->
-                if (!saving && items.isNotEmpty()) scope.launch {
-                    saving = true
-                    var ok = 0
-                    for (item in items) {
-                        val r = graph.imageSaver.save(session.baseUrl, item.space, item.unitId, auth.sid, auth.token)
-                        if (r is com.hawwwran.photosonthisday.data.SaveResult.Success) ok++
-                    }
-                    saving = false
-                    viewModel.clearSelection()
-                    Toast.makeText(context, context.getString(R.string.selection_saved, ok, items.size), Toast.LENGTH_SHORT).show()
-                }
-            },
-            onShareSelected = { items ->
-                if (!sharing && items.isNotEmpty()) scope.launch {
-                    sharing = true
-                    val uris = ArrayList<Uri>()
-                    val mimes = HashSet<String>()
-                    for (item in items) {
-                        val r = graph.mediaSharer.prepare(session.baseUrl, item.space, item.unitId, auth.sid, auth.token)
-                        if (r is ShareResult.Ready) {
-                            uris += FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", r.file)
-                            mimes += r.mime
-                        }
-                    }
-                    sharing = false
-                    viewModel.clearSelection()
-                    if (uris.isEmpty()) {
-                        Toast.makeText(context, context.getString(R.string.selection_share_failed), Toast.LENGTH_SHORT).show()
-                    } else {
-                        val type = mimes.singleOrNull() ?: commonMime(mimes)
-                        val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                            this.type = type
-                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        context.startActivity(Intent.createChooser(send, context.getString(R.string.viewer_share)))
-                    }
-                }
-            },
+            onDownloadSelected = saveItems,
+            onShareSelected = shareItems,
         )
 
         is DayNav.Viewer -> {
@@ -157,49 +175,15 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 items = items,
                 startIndex = current.index,
                 auth = auth,
+                http = graph.http,
                 likedKeys = likedKeys,
                 onToggleLike = { entry -> viewModel.toggleLike(entry.item) },
                 onBack = { nav = DayNav.Grid },
                 resolvePath = { item -> graph.folderApi.path(session.baseUrl, item.space, item.folderId, session.credentials) },
                 saving = saving,
                 sharing = sharing,
-                onShare = { entry ->
-                    if (!sharing) scope.launch {
-                        sharing = true
-                        val result = graph.mediaSharer.prepare(
-                            session.baseUrl, entry.item.space, entry.item.unitId, auth.sid, auth.token,
-                        )
-                        sharing = false
-                        when (result) {
-                            is ShareResult.Ready -> {
-                                val uri = FileProvider.getUriForFile(
-                                    context, "${context.packageName}.fileprovider", result.file,
-                                )
-                                val send = Intent(Intent.ACTION_SEND).apply {
-                                    type = result.mime
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(Intent.createChooser(send, context.getString(R.string.viewer_share)))
-                            }
-                            is ShareResult.Failed -> Toast.makeText(context, result.reason, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                },
-                onSave = { entry ->
-                    if (!saving) scope.launch {
-                        saving = true
-                        val result = graph.imageSaver.save(
-                            session.baseUrl, entry.item.space, entry.item.unitId, auth.sid, auth.token,
-                        )
-                        saving = false
-                        val message = when (result) {
-                            SaveResult.Success -> context.getString(R.string.viewer_saved)
-                            is SaveResult.Failed -> result.reason
-                        }
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-                    }
-                },
+                onShare = { entry -> shareItems(listOf(entry.item)) },
+                onSave = { entry -> saveItems(listOf(entry.item)) },
             )
         }
 
@@ -214,6 +198,7 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 likedByYear = likedByYear,
                 onLikedByYearChange = { value -> scope.launch { graph.sessionStore.setLikedByYear(value) } },
                 onClearCache = { graph.thumbnailWiper.wipe() },
+                updateViewModel = updateViewModel,
                 onBack = { nav = DayNav.Grid },
                 onSignOut = onSignOut,
             )
@@ -224,6 +209,12 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
 /** One [ViewModelStore] per signed-in session, cleared when [DayHost] leaves the composition. */
 private class DayViewModelStoreOwner : ViewModelStoreOwner {
     override val viewModelStore = ViewModelStore()
+}
+
+private fun FetchFailure.stringId(): Int = when (this) {
+    FetchFailure.NOT_A_FILE -> R.string.fetch_failed_not_a_file
+    FetchFailure.TRANSPORT -> R.string.fetch_failed_transport
+    FetchFailure.LOCAL -> R.string.fetch_failed_local
 }
 
 /** A shared mime for a multi-share: image or video when uniform, otherwise a wildcard. */

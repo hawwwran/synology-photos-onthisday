@@ -2,7 +2,6 @@ package com.hawwwran.photosonthisday.update
 
 import android.content.Context
 import android.os.PowerManager
-import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -24,16 +23,29 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+/** The APK download, as the view model sees it; [UpdateDownloader] is the real one. */
+fun interface UpdateDownloading {
+    fun download(url: String, version: String, expectedSize: Long): Flow<UpdateDownloader.DownloadProgress>
+}
+
 /**
  * Streams the release APK to the app cache, emitting progress as a cold Flow. Cancel the
  * collecting coroutine to abort: the partial file is deleted and the wake lock released. A
  * `PARTIAL_WAKE_LOCK` is held for the download so a screen-off pause does not stall it.
+ *
+ * A target that already exists with the expected size is reused: the user who came back from the
+ * install-permission page must not download the whole APK a second time.
  */
 class UpdateDownloader(
     private val cacheDir: File,
     private val wakeLockFactory: () -> WakeLockHolder,
-    httpClient: OkHttpClient? = null,
-) {
+    /**
+     * Derived from the app's client for its TLS and timeout rules, with redirects switched back on:
+     * GitHub answers `browser_download_url` with a 302 to its asset host, which the API client's
+     * no-redirect policy would refuse.
+     */
+    appClient: OkHttpClient,
+) : UpdateDownloading {
     fun interface WakeLockHolder {
         fun release()
     }
@@ -42,19 +54,26 @@ class UpdateDownloader(
         data object Started : DownloadProgress()
         data class Progress(val bytesRead: Long, val total: Long) : DownloadProgress()
         data class Done(val file: File) : DownloadProgress()
-        data class Failed(val reason: String) : DownloadProgress()
+        data class Failed(val reason: UpdateFailure) : DownloadProgress()
     }
 
-    private val client: OkHttpClient = httpClient ?: OkHttpClient.Builder()
+    private val client: OkHttpClient = appClient.newBuilder()
+        .followRedirects(true)
+        .followSslRedirects(true)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .writeTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    fun download(url: String, version: String): Flow<DownloadProgress> = flow {
+    override fun download(url: String, version: String, expectedSize: Long): Flow<DownloadProgress> = flow {
         emit(DownloadProgress.Started)
         val targetDir = File(cacheDir, "updates").apply { mkdirs() }
         val target = File(targetDir, "OnThisDay-$version.apk")
+        if (expectedSize > 0 && target.isFile && target.length() == expectedSize) {
+            emit(DownloadProgress.Progress(expectedSize, expectedSize))
+            emit(DownloadProgress.Done(target))
+            return@flow
+        }
         val partial = File(targetDir, target.name + ".partial")
         partial.delete()
 
@@ -63,13 +82,11 @@ class UpdateDownloader(
         try {
             awaitResponse(Request.Builder().url(url).build()).use { resp ->
                 if (!resp.isSuccessful) {
-                    emit(DownloadProgress.Failed("HTTP ${resp.code}"))
+                    UpdateLog.downloadFailed(UpdateFailure.DOWNLOAD_HTTP)
+                    emit(DownloadProgress.Failed(UpdateFailure.DOWNLOAD_HTTP))
                     return@flow
                 }
-                val body = resp.body ?: run {
-                    emit(DownloadProgress.Failed("Empty response body"))
-                    return@flow
-                }
+                val body = resp.body
                 val total = body.contentLength()
                 var bytesRead = 0L
                 var lastEmitAt = 0L
@@ -94,11 +111,13 @@ class UpdateDownloader(
                 // advertised and we got fewer bytes, the file is a truncated APK the installer
                 // would reject as "package invalid". Fail loudly instead.
                 if (total > 0 && bytesRead != total) {
-                    emit(DownloadProgress.Failed("Download incomplete ($bytesRead/$total bytes)"))
+                    UpdateLog.downloadFailed(UpdateFailure.DOWNLOAD_INCOMPLETE)
+                    emit(DownloadProgress.Failed(UpdateFailure.DOWNLOAD_INCOMPLETE))
                     return@flow
                 }
                 if (!partial.renameTo(target)) {
-                    emit(DownloadProgress.Failed("Could not finalize update file"))
+                    UpdateLog.downloadFailed(UpdateFailure.DOWNLOAD_IO)
+                    emit(DownloadProgress.Failed(UpdateFailure.DOWNLOAD_IO))
                     return@flow
                 }
                 success = true
@@ -107,9 +126,9 @@ class UpdateDownloader(
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (e: Exception) {
-            Log.i("OtdUpdate", "download error: ${e.message}")
-            emit(DownloadProgress.Failed(e.message ?: e.javaClass.simpleName))
+        } catch (e: IOException) {
+            UpdateLog.downloadFailed(UpdateFailure.DOWNLOAD_IO, e)
+            emit(DownloadProgress.Failed(UpdateFailure.DOWNLOAD_IO))
         } finally {
             if (!success) partial.delete()
             wakeLock.release()
@@ -135,7 +154,7 @@ class UpdateDownloader(
         private const val PROGRESS_EMIT_INTERVAL_MS = 100L
         private const val WAKE_LOCK_TIMEOUT_MS = 30L * 60 * 1000
 
-        fun forContext(context: Context, httpClient: OkHttpClient? = null) = UpdateDownloader(
+        fun forContext(context: Context, appClient: OkHttpClient) = UpdateDownloader(
             cacheDir = context.cacheDir,
             wakeLockFactory = {
                 val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -145,7 +164,7 @@ class UpdateDownloader(
                 }
                 WakeLockHolder { if (wl.isHeld) wl.release() }
             },
-            httpClient = httpClient,
+            appClient = appClient,
         )
     }
 }

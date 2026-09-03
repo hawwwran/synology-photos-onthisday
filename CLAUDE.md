@@ -72,7 +72,8 @@ built on GitHub. The APK is attached as `OnThisDay-<ver>.apk`.
 
 ## Device workflow
 
-Test device: Vivo V2145, Android 15, same as strumbook. `adb install -r`. Screenshots with
+Test device: Vivo V2145, Android 15, same as strumbook. minSdk is 29 (decision 004, amended
+2026-09-03): no storage permission, cleartext blocked by the platform. `adb install -r`. Screenshots with
 `adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png` - the device has multiple
 displays and `exec-out screencap` pollutes stdout with a warning.
 

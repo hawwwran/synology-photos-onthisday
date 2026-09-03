@@ -1,13 +1,14 @@
 # 010 - Viewer, save, share and the update flow
 
-- **Status:** Not started. Written from the whole-project code review of 2026-09-03.
+- **Status:** Code done 2026-09-03 with minSdk 29 (the default); the device checks wait for the
+  Vivo (no device attached in the executing session).
 - **Source:** code review 2026-09-03: findings 7, 11, 13, 14, 15 and the `DayHost` duplication.
 - **Depends on:** 005 (the code it fixes). Independent of 007-009; `DayHost` is edited by 007 too,
   so run 007 first to avoid a merge.
 - **Blocks:** 011.
 - **Decisions:** [004](../decisions/004-access-path-and-tls.md) (amend if minSdk changes: the
   "cleartext blocked since API 28" statement then covers every supported level).
-- **Progress:** 0 / 14
+- **Progress:** 10 / 14
 
 ## Goal
 
@@ -28,6 +29,12 @@ ways out:
 
 The executing session takes the default unless the owner says otherwise; note the choice in this
 plan.
+
+**Taken: minSdk 29** (executing session, 2026-09-03; the owner was not reachable and the plan named
+the default). One consequence found while building: from minSdk 28 AGP packages dex uncompressed,
+which took the debug APK from 24 MB to 74 MB with the same dex inside. `packaging.dex.useLegacyPackaging
+= true` in `app/build.gradle.kts` keeps dex compressed, so the download over GitHub and the in-app
+updater stays the size it was.
 
 ## Findings this plan fixes
 
@@ -134,64 +141,89 @@ a defect; recorded so the trade-off is a decision rather than an accident.
 
 ### 1. minSdk and Save
 
-- [ ] Apply the minSdk decision (default 29): `build.gradle.kts`, manifest permission removed,
-      `ImageSaver` branch removed, decision 004 amended (dated line). If 26 is kept instead: runtime
-      permission request before the first save on API 28 and below, with a denied path.
-- [ ] `OriginalFetch`: `onBody` outside the network catch; a local failure maps to its own message;
-      no `Log.w("PhotosApi", ...)`, use `ApiLog`. Test with `MockWebServer`: an `onBody` that throws
-      `IOException` yields the local-failure reason, not the transport one.
-- [ ] `ImageSaver`: `IS_PENDING` on write, cleared on success, row deleted on failure; no duplicate
-      when the same item is saved twice. Package line matches the directory (move both files to
-      `data/`).
-- [ ] Every string shown by save and share lives in `strings.xml`.
+- [x] minSdk 29 in `build.gradle.kts`; `WRITE_EXTERNAL_STORAGE` gone from the manifest; the
+      `Build.VERSION` branch gone from `ImageSaver`; decision 004 amended (2026-09-03); `CLAUDE.md`
+      device workflow names the level.
+- [x] `OriginalFetch.fetch` returns a `FetchFailure?` (`NOT_A_FILE`, `TRANSPORT`, `LOCAL`). The
+      network call is caught on its own; `onBody` runs outside it over a stream wrapper that tags a
+      read failure as transport, so a `MediaStore` refusal or a full disk is `LOCAL` while a broken
+      connection mid-copy is still `TRANSPORT`. Logging through `ApiLog`. `OriginalFetchTest`: five
+      cases, including "a write that fails on the device is LOCAL, not TRANSPORT" and "a stream that
+      breaks while copying is TRANSPORT".
+- [x] `ImageSaver` inserts with `IS_PENDING=1`, clears it after the copy, deletes the row on any
+      `IOException`, and skips the copy when a row with the same `DISPLAY_NAME` and `RELATIVE_PATH`
+      exists. Moved to `data/ImageSaver.kt` (`git mv`); `MediaSharer` already lived there.
+- [x] `SaveResult.Failed` and `ShareResult.Failed` carry a `FetchFailure`; `DayHost` maps it to
+      `fetch_failed_not_a_file`, `fetch_failed_transport`, `fetch_failed_local`. No literal reaches a toast.
 
 ### 2. Video
 
-- [ ] Pause on `ON_STOP`, resume only for the active page. Device check: play a video, press power,
-      no audio.
-- [ ] `media3-datasource-okhttp` over `AppGraph.http`; the `_sid`-in-URL reason stays as a comment
-      where `DownloadUrls.original` is called.
+- [ ] `VideoPage` observes `LocalLifecycleOwner`: `playWhenReady = isActive && started`, `started`
+      flipping on `ON_START`/`ON_STOP`. Device check: play a video, press power, no audio.
+      > Blocked: no device attached in the executing session; the code is in.
+- [x] `OkHttpDataSource.Factory(http)` over `AppGraph.http`, passed down from `DayHost`; the `_sid`
+      comment sits at both `DownloadUrls.original` call sites (`OriginalFetch`, `VideoPage`).
 
 ### 3. Update flow
 
-- [ ] A failed check with no cache is its own state and string; offline force-check never says
-      "latest version". Unit test on `UpdateViewModel` with a fake checker returning null.
-- [ ] `MISSING_PERMISSION` keeps the modal and the file, explains the settings page, and resumes
-      without a second download when a complete target of the expected size exists. Test the
-      downloader's reuse branch.
-- [ ] `UpdateUiState.Error` carries a typed reason; `strings.xml` supplies the text; no raw
-      `e.message` reaches the UI. `Log.i("OtdUpdate", ...)` lines log a reason class, not a message.
-- [ ] Both update clients derive from `AppGraph.http.newBuilder()` (`followRedirects(true)` on the
-      download client, with a comment saying why).
+- [x] `UpdateChecker.check` returns `CheckOutcome` (`Found`, `NoRelease`, `Unreachable`);
+      `Unreachable` becomes `UpdateUiState.CheckFailed` with its own title and body
+      (`update_title_check_failed`, `update_body_check_failed`). `UpdateViewModelTest` "a forced
+      check that cannot reach GitHub says so, not up to date". The view model's collaborators are
+      interfaces (`UpdateChecking`, `UpdateDownloading`, `UpdateInstalling`, `SkippedVersions`) with
+      `UpdateViewModel.factory` wiring the real ones; `AppRoot` creates it and hands it to Settings.
+- [x] `UpdateUiState.NeedsPermission(info, file)`: the modal stays open with an explanation and an
+      "Otevřít nastavení" button; `onAppOpen` retries the install only once `canInstall()` is true, so
+      returning without the permission does not bounce back into Settings. `UpdateInfo.apkSize` from
+      GitHub's asset `size`; `UpdateDownloader.download(url, version, expectedSize)` emits `Done` for
+      an existing target of that size with no request and no wake lock. Tests: `UpdateViewModelTest`
+      "a missing install permission keeps the modal, the file and the state, and resumes once
+      granted"; `UpdateDownloaderTest` "a complete target of the expected size is reused without a
+      request".
+- [x] `UpdateUiState.Error(reason: UpdateFailure)`; `UpdateModal.errorText` maps to five strings;
+      `UpdateLog` logs the reason and an exception class name only; `DownloadProgress.Failed` carries
+      the enum. No `e.message` anywhere in `update/`.
+- [x] `UpdateChecker(appClient)` and `UpdateDownloader(appClient)` build from `newBuilder()`; the
+      downloader turns `followRedirects`/`followSslRedirects` back on with the GitHub 302 reason in
+      its KDoc. `UpdateDownloaderTest` "... following GitHub's redirect". `UpdateChecker` now reads
+      GitHub and its cache with kotlinx-serialization (plan 011's optional item), which is what made
+      `UpdateCheckerTest` possible on the JVM.
 
 ### 4. Banner insets
 
-- [ ] Consume the status-bar inset below the banner; device screenshots with and without the banner
-      (`adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png`) show the app bar directly
-      under the banner. Update the memory note.
+- [ ] `AppRoot` applies `consumeWindowInsets(WindowInsets.statusBars)` to the `Box` below the banner
+      while `updateBannerShown(state)`. Device screenshots with and without the banner still to take.
+      > Blocked: no device attached in the executing session. Memory note updated to say so.
 
 ### 5. Liked group on first load
 
-- [ ] `loadSections` freezes a liked set that is guaranteed loaded. Test: with likes in the fake DAO
-      and a cold start, the first `display` emission has the liked group.
+- [x] `loadSections` reads `likes.likedKeys.first()` (a DAO read) instead of the unsubscribed
+      `StateFlow`'s initial value. `DayViewModelTest` "a cold start on a day with liked photos shows
+      the liked group first": the first `display` emission with items leads with `Liked`.
 
 ### 6. `DayHost`
 
-- [ ] `saveItems` / `shareItems` helpers replace the four blocks; one FileProvider authority
-      function used by `DayHost` and `Installer`; failure toasts consistent.
-- [ ] Grid double-tap: owner's call recorded in the plan and, if kept, a comment at the call site
-      naming the latency.
+- [x] `DayHost` has one `saveItems` and one `shareItems` (`ACTION_SEND` for one, `ACTION_SEND_MULTIPLE`
+      for many), used by the viewer and the selection bar; `data/FileProviderAuthority.kt` is the
+      one authority, used by `DayHost` and `Installer`; every failure toast comes from the typed
+      reason.
+- [x] Kept (the plan's default, owner not reachable); the comment at `PhotoCell`'s `combinedClickable`
+      names the ~300 ms hold.
 
 ## Acceptance criteria
 
 - [ ] Save works or fails with the right message on the Vivo; a failed save leaves no broken gallery
       entry (test by revoking storage space or killing Wi-Fi mid-copy of a large video).
+      > Blocked: device check.
 - [ ] Video stops when the phone locks.
+      > Blocked: device check.
 - [ ] Airplane mode, Settings, check for updates: the modal says the check failed, not that the app
       is current.
+      > Blocked: device check; `UpdateViewModelTest` pins the state.
 - [ ] Banner visible: no blank strip under it.
-- [ ] Cold start on a day with liked photos shows the liked group at once.
-- [ ] `./gradlew testDebugUnitTest` green.
+      > Blocked: device check.
+- [x] Cold start on a day with liked photos shows the liked group at once (`DayViewModelTest`).
+- [x] `./gradlew testDebugUnitTest` green: 115 tests.
 
 ## On completion
 

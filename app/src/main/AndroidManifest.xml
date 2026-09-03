@@ -5,10 +5,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Saving to the gallery on API <= 28 needs this; API 29+ uses scoped MediaStore with none. -->
-    <uses-permission
-        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="28" />
+    <!-- No storage permission: minSdk 29 saves through scoped MediaStore, which needs none. -->
 
     <!-- No android:usesCleartextTraffic and no network-security-config: the NAS is
          reached over HTTPS with a publicly trusted certificate. See decision 004. -->

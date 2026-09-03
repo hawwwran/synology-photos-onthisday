@@ -316,7 +316,9 @@ private fun PhotoCell(
     val isSelected = selected.contains(likeKey(item.space, item.unitId))
     val selectionActive = selected.isNotEmpty()
 
-    // Double-tap like/unlike with a heart burst, like the viewer's photos elsewhere.
+    // Double-tap like/unlike with a heart burst, like the viewer's photos elsewhere. Kept knowingly
+    // (plan 010): with an onDoubleClick set, Compose holds every single tap for the double-tap
+    // timeout (~300 ms) before opening the viewer. The owner takes the latency for the gesture.
     var burstToken by remember { mutableIntStateOf(0) }
     var burstLiked by remember { mutableStateOf(false) }
     val burstScale = remember { Animatable(0f) }

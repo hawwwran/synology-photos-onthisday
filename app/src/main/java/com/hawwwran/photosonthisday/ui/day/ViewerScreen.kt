@@ -56,8 +56,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
-import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
@@ -74,6 +77,8 @@ import com.hawwwran.photosonthisday.api.ThumbnailUrls
 import com.hawwwran.photosonthisday.core.MonthDay
 import com.hawwwran.photosonthisday.core.czech
 import com.hawwwran.photosonthisday.likes.likeKey
+import com.hawwwran.photosonthisday.ui.formatBytes
+import okhttp3.OkHttpClient
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -92,6 +97,8 @@ fun ViewerScreen(
     items: List<ViewerItem>,
     startIndex: Int,
     auth: ThumbnailAuth,
+    /** The app's client, so video streams under the same TLS, timeout and no-redirect rules as every other call. */
+    http: OkHttpClient,
     likedKeys: Set<String>,
     onToggleLike: (ViewerItem) -> Unit,
     onBack: () -> Unit,
@@ -125,6 +132,7 @@ fun ViewerScreen(
                 VideoPage(
                     entry = entry,
                     auth = auth,
+                    http = http,
                     isActive = page == pagerState.currentPage,
                     onControlsVisibilityChange = { visible -> if (page == pagerState.currentPage) controlsVisible = visible },
                 )
@@ -206,13 +214,15 @@ private fun ImmersiveSystemBars(immersive: Boolean) {
  * Plays a video, streamed from the download endpoint (session in the query, token in the header).
  * The controls start hidden so they never sit over the video unasked: a single tap shows them
  * (they auto-hide after a few seconds), a double-tap on the right half skips 15 s forward and on
- * the left half 15 s back. Only the page on screen plays.
+ * the left half 15 s back. Only the page on screen plays, and only while the activity is started:
+ * Home or the power button pauses, coming back resumes the active page.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun VideoPage(
     entry: ViewerItem,
     auth: ThumbnailAuth,
+    http: OkHttpClient,
     isActive: Boolean,
     onControlsVisibilityChange: (Boolean) -> Unit,
 ) {
@@ -242,9 +252,12 @@ private fun VideoPage(
     }
 
     DisposableEffect(entry.item.id) {
+        // `_sid` rides in the URL here, as for the save: the cookie form was verified only for
+        // thumbnails (research, "Update, second run"). OkHttp, not HttpURLConnection, so the app
+        // client's no-redirect and timeout policy applies to a URL that carries the session.
         val url = DownloadUrls.original(auth.baseUrl, entry.item.space, entry.item.unitId, auth.sid).toString()
         val headers = buildMap<String, String> { auth.token?.let { put(SynologyClient.SYNO_TOKEN_HEADER, it) } }
-        val dataSource = DefaultHttpDataSource.Factory().setDefaultRequestProperties(headers)
+        val dataSource = OkHttpDataSource.Factory(http).setDefaultRequestProperties(headers)
         val source = ProgressiveMediaSource.Factory(dataSource).createMediaSource(MediaItem.fromUri(url))
         player.setMediaSource(source)
         player.prepare()
@@ -253,7 +266,20 @@ private fun VideoPage(
             player.release()
         }
     }
-    LaunchedEffect(isActive) { player.playWhenReady = isActive }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var started by remember { mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> started = true
+                Lifecycle.Event.ON_STOP -> started = false
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(isActive, started) { player.playWhenReady = isActive && started }
 
     Box(Modifier.fillMaxSize()) {
         AndroidView(factory = { playerView }, modifier = Modifier.fillMaxSize())
@@ -377,7 +403,7 @@ private fun InfoDialog(item: PhotoItem, resolvePath: suspend (PhotoItem) -> Stri
                 if (item.width > 0 && item.height > 0) {
                     InfoRow(stringResource(R.string.info_resolution), resolutionText(item.width, item.height))
                 }
-                if (item.filesize > 0) InfoRow(stringResource(R.string.info_size), humanSize(item.filesize))
+                if (item.filesize > 0) InfoRow(stringResource(R.string.info_size), formatBytes(item.filesize))
                 if (item.filename.isNotBlank()) InfoRow(stringResource(R.string.info_filename), item.filename)
                 val folderPath = path
                 if (folderPath == null) {
@@ -402,17 +428,4 @@ private fun InfoRow(label: String, value: String) {
 private fun resolutionText(width: Int, height: Int): String {
     val megapixels = width.toLong() * height.toLong() / 1_000_000.0
     return "$width × $height (${String.format(Locale.getDefault(), "%.1f", megapixels)} Mpx)"
-}
-
-/** Bytes as KB/MB/GB with one decimal, in the device locale. */
-private fun humanSize(bytes: Long): String {
-    if (bytes < 1024) return "$bytes B"
-    val units = listOf("KB", "MB", "GB", "TB")
-    var value = bytes.toDouble()
-    var unit = -1
-    while (value >= 1024 && unit < units.lastIndex) {
-        value /= 1024
-        unit++
-    }
-    return "${String.format(Locale.getDefault(), "%.1f", value)} ${units[unit]}"
 }

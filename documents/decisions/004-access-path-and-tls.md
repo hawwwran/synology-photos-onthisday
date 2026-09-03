@@ -71,6 +71,11 @@ HTTPS to a Synology DDNS hostname carrying a Let's Encrypt certificate issued th
   question: DSM auto-block keys on the client address and sees only the proxy's, so a few
   failed logins from anyone would ban the proxy for the whole household. Accepted as is by the
   owner the same day (Q4 in the index): the household is small and a ban lifts by itself.
+- 2026-09-03, plan 010: **minSdk is 29.** The context section says cleartext is blocked by the
+  platform since API 28; with minSdk 26 that left two supported levels where only the manifest's
+  omission of `usesCleartextTraffic` stood in the way. At 29 the platform default covers every
+  supported level, and the save-to-gallery path needs no storage permission (scoped MediaStore),
+  which the app had declared but never requested at runtime. The household's phones are newer.
 
 ## Related
 

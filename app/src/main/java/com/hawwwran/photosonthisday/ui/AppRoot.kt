@@ -1,8 +1,12 @@
 package com.hawwwran.photosonthisday.ui
 
+import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -11,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -25,20 +30,22 @@ import com.hawwwran.photosonthisday.ui.signin.SignInViewModel
 import com.hawwwran.photosonthisday.update.UpdateBanner
 import com.hawwwran.photosonthisday.update.UpdateModal
 import com.hawwwran.photosonthisday.update.UpdateViewModel
+import com.hawwwran.photosonthisday.update.updateBannerShown
 import kotlinx.coroutines.launch
 
 /**
  * Sign-in when there is no session, the day screen when there is. The session store is the
  * single source of truth, so expiry detected anywhere flips this screen without a navigation
  * call. The update banner and modal live here, above whichever screen is shown; the update view
- * model is activity-scoped, so Settings reaches the same instance through `viewModel()`.
+ * model is activity-scoped and handed down to Settings.
  */
 @Composable
 fun AppRoot(graph: AppGraph) {
     val state by graph.sessionStore.state.collectAsState(initial = SessionState.Loading)
     val scope = rememberCoroutineScope()
 
-    val updateViewModel: UpdateViewModel = viewModel()
+    val application = LocalContext.current.applicationContext as Application
+    val updateViewModel: UpdateViewModel = viewModel(factory = UpdateViewModel.factory(application, graph))
     val updateState by updateViewModel.state.collectAsState()
     val updateModalOpen by updateViewModel.modalOpen.collectAsState()
 
@@ -57,11 +64,14 @@ fun AppRoot(graph: AppGraph) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // The banner carries its own status-bar inset (see UpdateBanner), so the screens below keep
-    // handling their own insets and the fullscreen viewer stays edge-to-edge.
+    // The banner pads itself below the status bar. `windowInsetsPadding` consumes for its own
+    // subtree only, so the screens below would pad for the bar a second time and leave a blank
+    // strip under the banner; the inset is consumed here while the banner shows. Without the
+    // banner the screens keep handling their own insets and the viewer stays edge-to-edge.
     Column(Modifier.fillMaxSize()) {
         UpdateBanner(state = updateState, onClick = updateViewModel::openModal)
-        Box(Modifier.weight(1f)) {
+        val below = if (updateBannerShown(updateState)) Modifier.consumeWindowInsets(WindowInsets.statusBars) else Modifier
+        Box(Modifier.weight(1f).then(below)) {
             when (val current = state) {
                 SessionState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -78,6 +88,7 @@ fun AppRoot(graph: AppGraph) {
                 is SessionState.SignedIn -> DayHost(
                     graph = graph,
                     session = current.session,
+                    updateViewModel = updateViewModel,
                     onSignOut = { scope.launch { graph.sessions.signOut() } },
                 )
             }

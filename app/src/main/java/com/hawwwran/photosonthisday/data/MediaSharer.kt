@@ -11,7 +11,7 @@ import java.io.File
 sealed interface ShareResult {
     /** The temp copy to hand to the share sheet, and its mime type. */
     data class Ready(val file: File, val mime: String) : ShareResult
-    data class Failed(val reason: String) : ShareResult
+    data class Failed(val reason: FetchFailure) : ShareResult
 }
 
 /**
@@ -31,14 +31,18 @@ class MediaSharer(
             dir.mkdirs()
             var file: File? = null
             var mime = "application/octet-stream"
-            val reason = OriginalFetch.fetch(http, baseUrl, space, unitId, sid, token) { contentType, source ->
+            val failure = OriginalFetch.fetch(http, baseUrl, space, unitId, sid, token) { contentType, source ->
                 mime = contentType
                 val target = File(dir, "OnThisDay-$unitId.${extensionForMime(contentType)}")
                 target.outputStream().use { source.copyTo(it) }
                 file = target
             }
             val ready = file
-            if (reason == null && ready != null) ShareResult.Ready(ready, mime) else ShareResult.Failed(reason ?: "Sdílení selhalo.")
+            when {
+                failure != null -> ShareResult.Failed(failure)
+                ready == null -> ShareResult.Failed(FetchFailure.LOCAL)
+                else -> ShareResult.Ready(ready, mime)
+            }
         }
 
     /** Delete temp copies older than an hour. */
