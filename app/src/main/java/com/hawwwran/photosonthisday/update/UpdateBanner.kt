@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +31,7 @@ fun UpdateBanner(state: UpdateUiState, onClick: () -> Unit) {
         contentColor = Color(0xFF1A1628),
         modifier = Modifier
             .fillMaxWidth()
+            .statusBarsPadding() // edge-to-edge (targetSdk 35): sit below the status bar, not under it
             .heightIn(max = 56.dp)
             .clickable(onClick = onClick),
     ) {

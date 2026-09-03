@@ -57,6 +57,8 @@ fun AppRoot(graph: AppGraph) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // The banner carries its own status-bar inset (see UpdateBanner), so the screens below keep
+    // handling their own insets and the fullscreen viewer stays edge-to-edge.
     Column(Modifier.fillMaxSize()) {
         UpdateBanner(state = updateState, onClick = updateViewModel::openModal)
         Box(Modifier.weight(1f)) {
