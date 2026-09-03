@@ -87,7 +87,7 @@ fun DayScreen(
     onShareSelected: (List<com.hawwwran.photosonthisday.api.PhotoItem>) -> Unit,
 ) {
     val view by viewModel.dayView.collectAsState()
-    val sections by viewModel.sections.collectAsState()
+    val display by viewModel.display.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
     var picking by remember { mutableStateOf(false) }
     val selected by viewModel.selected.collectAsState()
@@ -165,7 +165,7 @@ fun DayScreen(
                             onRefresh = viewModel::refresh,
                             modifier = Modifier.fillMaxSize(),
                         ) {
-                            DayGrid(current, sections, auth, likedKeys, selected, gridState, viewModel, onOpenPhoto)
+                            DayGrid(current, display, auth, likedKeys, selected, gridState, viewModel, onOpenPhoto)
                         }
                     } else {
                         Text(
@@ -190,7 +190,7 @@ fun DayScreen(
 @OptIn(ExperimentalFoundationApi::class)
 private fun DayGrid(
     shown: DayViewState.Shown,
-    sections: List<YearSection>,
+    display: DayDisplay,
     auth: ThumbnailAuth,
     likedKeys: Set<String>,
     selected: Set<String>,
@@ -198,10 +198,6 @@ private fun DayGrid(
     viewModel: DayViewModel,
     onOpenPhoto: (Int) -> Unit,
 ) {
-    val baseIndex = HashMap<Int, Int>().also { map ->
-        var running = 0
-        sections.forEach { map[it.year] = running; running += it.items.size }
-    }
     LazyVerticalGrid(
         state = gridState,
         columns = GridCells.Adaptive(minSize = 108.dp),
@@ -221,12 +217,37 @@ private fun DayGrid(
                 )
             }
         }
-        sections.forEach { section ->
+
+        // Running index across every group, matching DayViewModel.viewerSnapshot order.
+        var index = 0
+
+        if (display.liked.isNotEmpty()) {
+            fullWidth {
+                Column(Modifier.padding(top = 12.dp, bottom = 4.dp)) {
+                    Text(stringResource(R.string.liked_header), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        pluralStringResource(R.plurals.day_photo_count, display.liked.size, display.liked.size),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            val start = index
+            itemsIndexed(
+                items = display.liked,
+                key = { _, entry -> "liked:${entry.item.space.name}:${entry.item.id}" },
+            ) { localIndex, entry ->
+                PhotoCell(entry.item, auth, likedKeys, selected, viewModel, onOpenPhoto, start + localIndex)
+            }
+            index += display.liked.size
+        }
+
+        display.years.forEach { section ->
             fullWidth {
                 Column(Modifier.padding(top = 12.dp, bottom = 4.dp)) {
                     Text("${section.year}", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        pluralStringResource(R.plurals.day_photo_count, section.expectedCount, section.expectedCount),
+                        pluralStringResource(R.plurals.day_photo_count, section.items.size, section.items.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -244,53 +265,68 @@ private fun DayGrid(
                     Text(message, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(8.dp))
                 }
             }
-            val start = baseIndex[section.year] ?: 0
+            val start = index
             itemsIndexed(
                 items = section.items,
                 key = { _, item -> "${section.year}:${item.space.name}:${item.id}" },
             ) { localIndex, item ->
-                val isSelected = selected.contains(likeKey(item.space, item.unitId))
-                val selectionActive = selected.isNotEmpty()
-                Box(
-                    Modifier
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(6.dp))
-                        .combinedClickable(
-                            onClick = { if (selectionActive) viewModel.toggleSelect(item) else onOpenPhoto(start + localIndex) },
-                            onLongClick = { viewModel.startSelect(item) },
-                        ),
-                ) {
-                    Thumbnail(
-                        ref = ThumbnailRef(item.space, item.unitId, item.cacheKey, ThumbnailSize.MEDIUM),
-                        auth = auth,
-                        isVideo = item.isVideo,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    if (likedKeys.contains(likeKey(item.space, item.unitId))) {
-                        Icon(
-                            imageVector = Icons.Filled.Favorite,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
-                        )
-                    }
-                    if (isSelected) {
-                        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
-                        Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.align(Alignment.TopStart).padding(4.dp).size(20.dp),
-                        )
-                    }
-                }
+                PhotoCell(item, auth, likedKeys, selected, viewModel, onOpenPhoto, start + localIndex)
             }
+            index += section.items.size
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@androidx.compose.runtime.Composable
+private fun PhotoCell(
+    item: com.hawwwran.photosonthisday.api.PhotoItem,
+    auth: ThumbnailAuth,
+    likedKeys: Set<String>,
+    selected: Set<String>,
+    viewModel: DayViewModel,
+    onOpenPhoto: (Int) -> Unit,
+    globalIndex: Int,
+) {
+    val isSelected = selected.contains(likeKey(item.space, item.unitId))
+    val selectionActive = selected.isNotEmpty()
+    Box(
+        Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(6.dp))
+            .combinedClickable(
+                onClick = { if (selectionActive) viewModel.toggleSelect(item) else onOpenPhoto(globalIndex) },
+                onLongClick = { viewModel.startSelect(item) },
+            ),
+    ) {
+        Thumbnail(
+            ref = ThumbnailRef(item.space, item.unitId, item.cacheKey, ThumbnailSize.MEDIUM),
+            auth = auth,
+            isVideo = item.isVideo,
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (likedKeys.contains(likeKey(item.space, item.unitId))) {
+            Icon(
+                imageVector = Icons.Filled.Favorite,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).size(18.dp),
+            )
+        }
+        if (isSelected) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.align(Alignment.TopStart).padding(4.dp).size(20.dp),
+            )
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
+@androidx.compose.runtime.Composable
 private fun DayPickerDialog(onDismiss: () -> Unit, onPicked: (MonthDay) -> Unit) {
     val state = rememberDatePickerState()
     DatePickerDialog(

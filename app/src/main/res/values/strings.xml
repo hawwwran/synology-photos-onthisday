@@ -15,6 +15,7 @@
     <string name="day_fallback">Nejbližší den s fotkami, %1$s %2$s.</string>
     <string name="day_ago">zpět</string>
     <string name="day_ahead">dopředu</string>
+    <string name="liked_header">Oblíbené</string>
     <string name="day_refresh">Obnovit</string>
     <string name="day_previous">Předchozí den</string>
     <string name="day_next">Další den</string>
