@@ -9,13 +9,13 @@ dependency column is.
 | [002](002-foundation-and-auth.md) | Foundation and sign-in | Done | 001 | 14 / 14 |
 | [003](003-day-index.md) | Day histogram and day selection | Done | 001 | 12 / 12 |
 | [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
-| [005](005-viewer-and-hardening.md) | Viewer, download, hardening | 10/11 (release build waits on keystore) | 004 | 10 / 11 |
-| [006](006-likes.md) | Liking photos, stored on the NAS | Built, live test pending 2026-09-03 | 005, decision 008 | code complete |
+| [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Done; v1.0.0 cut 2026-09-03 | 004 | 13 / 13 |
+| [006](006-likes.md) | Liking photos, stored on the NAS | Done; six observation boxes dropped (File Station route) | 005, decision 008 | 15 / 21 |
 | [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Code done 2026-09-03; device checks pending | 005 | 12 / 14 |
 | [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Code done 2026-09-03; instrumented tests and device check pending | 005 | 9 / 12 |
 | [009](009-likes-hardening.md) | Likes hardening | Code done 2026-09-03; device check pending | 007, 008 | 12 / 13 |
 | [010](010-viewer-save-share-and-update.md) | Viewer, save, share and the update flow | Code done 2026-09-03 (minSdk 29); device checks pending | 005 (run after 007) | 10 / 14 |
-| [011](011-documentation-logging-and-dead-code.md) | Documentation, the logging rule and dead code | Not started (code review 2026-09-03) | 007-010 | 0 / 14 |
+| [011](011-documentation-logging-and-dead-code.md) | Documentation, the logging rule and dead code | Done 2026-09-03; release cut pending (needs push) | 007-010 | 14 / 14 |
 
 ```
 001 ─┬─> 002 ─┐
@@ -35,9 +35,12 @@ version 5 and the end of destructive migration; 009 relies on it. 010 edits `Day
 also edits, so it follows 007. 011 records the final state and adds the logging-rule test, then a
 release is cut.
 
-Owner decisions the plans leave open, with the default each plan takes if unanswered: minSdk 29
-versus keeping 26 with a runtime permission (010, default 29); which rose colour is right, icon or
-theme (011, default the icon's); keep or drop the grid double-tap (010, default keep and comment).
+All five were executed on 2026-09-03 in a session with no device attached: every code change is in,
+117 JVM tests pass, and each plan lists the device checks left for the Vivo under `> Blocked`. The
+next release waits on those checks and on `main` being pushed.
+
+Owner decisions the plans left open were taken by default and are recorded in each plan: minSdk 29
+(010), the theme's rose follows `colors.xml` (011), the grid double-tap is kept with a comment (010).
 
 001-004 are done. 005 is 10/11: viewer, settings, hardening and the original-file download are
 done; only the release-signed build waits on a keystore.

@@ -70,6 +70,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.hawwwran.photosonthisday.R
+import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.api.ThumbnailRef
 import com.hawwwran.photosonthisday.api.ThumbnailSize
 import com.hawwwran.photosonthisday.core.MonthDay
@@ -93,8 +94,8 @@ fun DayScreen(
     onOpenPhoto: (Int) -> Unit,
     onOpenSettings: () -> Unit,
     onSignOut: () -> Unit,
-    onDownloadSelected: (List<com.hawwwran.photosonthisday.api.PhotoItem>) -> Unit,
-    onShareSelected: (List<com.hawwwran.photosonthisday.api.PhotoItem>) -> Unit,
+    onDownloadSelected: (List<PhotoItem>) -> Unit,
+    onShareSelected: (List<PhotoItem>) -> Unit,
 ) {
     val view by viewModel.dayView.collectAsState()
     val display by viewModel.display.collectAsState()
@@ -175,7 +176,7 @@ fun DayScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         Text(current.message, textAlign = TextAlign.Center)
-                        Button(onClick = viewModel::retry, enabled = !refreshing) {
+                        Button(onClick = viewModel::refresh, enabled = !refreshing) {
                             Text(stringResource(R.string.day_retry))
                         }
                     }
@@ -305,7 +306,7 @@ private fun DayGrid(
 @OptIn(ExperimentalFoundationApi::class)
 @androidx.compose.runtime.Composable
 private fun PhotoCell(
-    item: com.hawwwran.photosonthisday.api.PhotoItem,
+    item: PhotoItem,
     auth: ThumbnailAuth,
     likedKeys: Set<String>,
     selected: Set<String>,

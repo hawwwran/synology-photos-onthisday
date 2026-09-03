@@ -1,5 +1,6 @@
 package com.hawwwran.photosonthisday.update
 
+import com.hawwwran.photosonthisday.api.AppJson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -42,7 +43,7 @@ class UpdateChecker(
     appClient: OkHttpClient,
     private val baseUrl: String = DEFAULT_BASE_URL,
     private val now: () -> Long = { System.currentTimeMillis() },
-    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val json: Json = AppJson,
 ) : UpdateChecking {
     private val client: OkHttpClient = appClient.newBuilder()
         .connectTimeout(3, TimeUnit.SECONDS)

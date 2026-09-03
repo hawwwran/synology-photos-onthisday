@@ -55,7 +55,7 @@ class DayViewModelTest {
         store.seedRefreshedAt(clock)
         store.replaceDayItems(2024, today, mapOf(Space.PERSONAL to listOf(photo(1, 1_700_000_001L), photo(2, 1_700_000_000L))))
         likeDao.upsertAll(listOf(LikeEntity("PERSONAL", 2, liked = true, updatedAt = 1L)))
-        val repository = DayIndexRepository(store, TimelineApi(SynologyClient(OkHttpClient())), ItemApi(SynologyClient(OkHttpClient())), today = { today }, now = { clock })
+        val repository = DayIndexRepository(store, TimelineApi(SynologyClient(OkHttpClient())), ItemApi(SynologyClient(OkHttpClient())), now = { clock })
         val likes = LikeRepository(likeDao, FakeLikesRemote(), folder = { "/x" })
 
         val viewModel = DayViewModel(repository, likes, session, today, flowOf(false), todayProvider = { today })

@@ -28,7 +28,7 @@ data class SessionCredentials(val sid: String, val synotoken: String?)
  */
 class SynologyClient(
     private val http: OkHttpClient,
-    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val json: Json = AppJson,
 ) {
 
     /**
@@ -64,8 +64,7 @@ class SynologyClient(
                     response.body.string()
                 }
             } catch (e: IOException) {
-                ApiLog.transport(call, e)
-                throw ApiFailure.Transport(call, e)
+                throw ApiFailure.Transport(call, e).also(ApiLog::failure)
             }
         }
         return decodeEnvelope(call, body)
@@ -90,17 +89,12 @@ class SynologyClient(
                 ApiLog.ok(call)
                 envelope.data
             }
-            is Envelope.Error -> {
-                ApiLog.dsmError(call, envelope.code)
-                throw ApiFailure.fromDsmCode(call, envelope.code)
-            }
+            is Envelope.Error -> throw ApiFailure.fromDsmCode(call, envelope.code).also(ApiLog::failure)
             is Envelope.NotAnEnvelope -> throw malformed(call, envelope.detail)
         }
 
-    private fun malformed(call: ApiCall, detail: String): ApiFailure.Malformed {
-        ApiLog.malformed(call, detail)
-        return ApiFailure.Malformed(call, detail)
-    }
+    private fun malformed(call: ApiCall, detail: String): ApiFailure.Malformed =
+        ApiFailure.Malformed(call, detail).also(ApiLog::failure)
 
     companion object {
         const val SYNO_TOKEN_HEADER = "X-SYNO-TOKEN"

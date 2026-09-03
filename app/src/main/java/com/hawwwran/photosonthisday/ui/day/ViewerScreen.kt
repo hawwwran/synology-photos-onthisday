@@ -65,15 +65,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
-import coil3.network.httpHeaders
-import coil3.request.ImageRequest
 import com.hawwwran.photosonthisday.R
 import com.hawwwran.photosonthisday.api.DownloadUrls
 import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.ThumbnailRef
 import com.hawwwran.photosonthisday.api.ThumbnailSize
-import com.hawwwran.photosonthisday.api.ThumbnailUrls
 import com.hawwwran.photosonthisday.core.MonthDay
 import com.hawwwran.photosonthisday.core.czech
 import com.hawwwran.photosonthisday.likes.likeKey
@@ -94,16 +91,16 @@ private const val SEEK_STEP_MS = 15_000L
  */
 @Composable
 fun ViewerScreen(
-    items: List<ViewerItem>,
+    items: List<PhotoItem>,
     startIndex: Int,
     auth: ThumbnailAuth,
     /** The app's client, so video streams under the same TLS, timeout and no-redirect rules as every other call. */
     http: OkHttpClient,
     likedKeys: Set<String>,
-    onToggleLike: (ViewerItem) -> Unit,
+    onToggleLike: (PhotoItem) -> Unit,
     onBack: () -> Unit,
-    onSave: (ViewerItem) -> Unit,
-    onShare: (ViewerItem) -> Unit,
+    onSave: (PhotoItem) -> Unit,
+    onShare: (PhotoItem) -> Unit,
     resolvePath: suspend (PhotoItem) -> String?,
     saving: Boolean,
     sharing: Boolean,
@@ -120,17 +117,17 @@ fun ViewerScreen(
     val current = items[pagerState.currentPage]
     LaunchedEffect(pagerState.currentPage) { controlsVisible = false }
 
-    if (infoShown) InfoDialog(current.item, resolvePath, onDismiss = { infoShown = false })
+    if (infoShown) InfoDialog(current, resolvePath, onDismiss = { infoShown = false })
 
-    val immersive = landscape && current.item.isVideo && !controlsVisible
+    val immersive = landscape && current.isVideo && !controlsVisible
     ImmersiveSystemBars(immersive)
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             val entry = items[page]
-            if (entry.item.isVideo) {
+            if (entry.isVideo) {
                 VideoPage(
-                    entry = entry,
+                    item = entry,
                     auth = auth,
                     http = http,
                     isActive = page == pagerState.currentPage,
@@ -154,14 +151,14 @@ fun ViewerScreen(
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.viewer_back), tint = Color.White)
                 }
                 Text(
-                    text = fullDate(current.item.takenTimeSeconds),
+                    text = fullDate(current.takenTimeSeconds),
                     color = Color.White,
                     modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                 )
                 IconButton(onClick = { infoShown = true }) {
                     Icon(Icons.Outlined.Info, contentDescription = stringResource(R.string.viewer_info), tint = Color.White)
                 }
-                val liked = likedKeys.contains(likeKey(current.item.space, current.item.unitId))
+                val liked = likedKeys.contains(likeKey(current.space, current.unitId))
                 IconButton(onClick = { onToggleLike(current) }) {
                     Icon(
                         imageVector = if (liked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
@@ -220,21 +217,21 @@ private fun ImmersiveSystemBars(immersive: Boolean) {
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun VideoPage(
-    entry: ViewerItem,
+    item: PhotoItem,
     auth: ThumbnailAuth,
     http: OkHttpClient,
     isActive: Boolean,
     onControlsVisibilityChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
-    val player = remember(entry.item.id) {
+    val player = remember(item.id) {
         ExoPlayer.Builder(context)
             .setSeekForwardIncrementMs(SEEK_STEP_MS)
             .setSeekBackIncrementMs(SEEK_STEP_MS)
             .build()
     }
-    var controlsShown by remember(entry.item.id) { mutableStateOf(false) }
-    val playerView = remember(entry.item.id) {
+    var controlsShown by remember(item.id) { mutableStateOf(false) }
+    val playerView = remember(item.id) {
         PlayerView(context).apply {
             this.player = player
             useController = true
@@ -251,11 +248,11 @@ private fun VideoPage(
         }
     }
 
-    DisposableEffect(entry.item.id) {
+    DisposableEffect(item.id) {
         // `_sid` rides in the URL here, as for the save: the cookie form was verified only for
         // thumbnails (research, "Update, second run"). OkHttp, not HttpURLConnection, so the app
         // client's no-redirect and timeout policy applies to a URL that carries the session.
-        val url = DownloadUrls.original(auth.baseUrl, entry.item.space, entry.item.unitId, auth.sid).toString()
+        val url = DownloadUrls.original(auth.baseUrl, item.space, item.unitId, auth.sid).toString()
         val headers = buildMap<String, String> { auth.token?.let { put(SynologyClient.SYNO_TOKEN_HEADER, it) } }
         val dataSource = OkHttpDataSource.Factory(http).setDefaultRequestProperties(headers)
         val source = ProgressiveMediaSource.Factory(dataSource).createMediaSource(MediaItem.fromUri(url))
@@ -292,7 +289,7 @@ private fun VideoPage(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .pointerInput(entry.item.id) {
+                    .pointerInput(item.id) {
                         detectTapGestures(
                             onTap = { playerView.showController() },
                             onDoubleTap = { offset ->
@@ -318,10 +315,10 @@ private const val MAX_SCALE = 5f
  * lift, so a photo is never left smaller than fit.
  */
 @Composable
-private fun ZoomableImage(entry: ViewerItem, auth: ThumbnailAuth) {
+private fun ZoomableImage(item: PhotoItem, auth: ThumbnailAuth) {
     val context = LocalContext.current
-    var scale by remember(entry.item.id) { mutableStateOf(MIN_SCALE) }
-    var offset by remember(entry.item.id) { mutableStateOf(Offset.Zero) }
+    var scale by remember(item.id) { mutableStateOf(MIN_SCALE) }
+    var offset by remember(item.id) { mutableStateOf(Offset.Zero) }
 
     val state = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(RUBBER_MIN, MAX_SCALE)
@@ -337,15 +334,8 @@ private fun ZoomableImage(entry: ViewerItem, auth: ThumbnailAuth) {
         }
     }
 
-    val ref = ThumbnailRef(entry.item.space, entry.item.unitId, entry.item.cacheKey, ThumbnailSize.LARGE)
-    val request = remember(ref, auth) {
-        ImageRequest.Builder(context)
-            .data(ThumbnailUrls.get(auth.baseUrl, ref).toString())
-            .httpHeaders(auth.networkHeaders())
-            .memoryCacheKey(ref.cacheId)
-            .diskCacheKey(ref.cacheId)
-            .build()
-    }
+    val ref = ThumbnailRef(item.space, item.unitId, item.cacheKey, ThumbnailSize.LARGE)
+    val request = remember(ref, auth) { thumbnailRequest(context, ref, auth) }
 
     Box(
         modifier = Modifier

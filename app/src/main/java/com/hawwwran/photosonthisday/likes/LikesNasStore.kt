@@ -3,6 +3,7 @@ package com.hawwwran.photosonthisday.likes
 import com.hawwwran.photosonthisday.api.Allowlist
 import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.ApiLog
+import com.hawwwran.photosonthisday.api.AppJson
 import com.hawwwran.photosonthisday.api.SessionCredentials
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -25,7 +26,7 @@ interface LikesRemote {
  */
 class LikesNasStore(
     private val fileStation: FileStationClient,
-    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val json: Json = AppJson,
 ) : LikesRemote {
     override suspend fun pull(baseUrl: HttpUrl, folder: String, credentials: SessionCredentials): List<LikeState> {
         val bytes = fileStation.download(baseUrl, "$folder/$FILE_NAME", credentials) ?: return emptyList()
@@ -39,10 +40,8 @@ class LikesNasStore(
     }
 
     /** Present but not our shape: stop, so the sync never pushes over it. Logged as the call and a detail, no content. */
-    private fun unreadable(): ApiFailure.Malformed {
-        ApiLog.malformed(Allowlist.FS_DOWNLOAD, "likes file is not readable")
-        return ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "likes file is not readable")
-    }
+    private fun unreadable(): ApiFailure.Malformed =
+        ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "likes file is not readable").also(ApiLog::failure)
 
     override suspend fun push(baseUrl: HttpUrl, folder: String, states: Collection<LikeState>, credentials: SessionCredentials) {
         val bytes = json.encodeToString(LikesFile.serializer(), states.toFile()).encodeToByteArray()

@@ -177,13 +177,13 @@ fun DayHost(graph: AppGraph, session: Session, updateViewModel: UpdateViewModel,
                 auth = auth,
                 http = graph.http,
                 likedKeys = likedKeys,
-                onToggleLike = { entry -> viewModel.toggleLike(entry.item) },
+                onToggleLike = viewModel::toggleLike,
                 onBack = { nav = DayNav.Grid },
                 resolvePath = { item -> graph.folderApi.path(session.baseUrl, item.space, item.folderId, session.credentials) },
                 saving = saving,
                 sharing = sharing,
-                onShare = { entry -> shareItems(listOf(entry.item)) },
-                onSave = { entry -> saveItems(listOf(entry.item)) },
+                onShare = { item -> shareItems(listOf(item)) },
+                onSave = { item -> saveItems(listOf(item)) },
             )
         }
 

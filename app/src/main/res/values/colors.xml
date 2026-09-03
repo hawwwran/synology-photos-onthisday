@@ -3,6 +3,7 @@
     <!-- Night ground, so the one white petal reads as the highlighted day. -->
     <color name="ic_launcher_background">#FF665C</color>
 
+    <!-- The icon's petals. ui/theme/Palette.kt carries the same values for Compose and must match. -->
     <color name="petal_today">#FFFFFFFF</color>
     <color name="petal_amber">#FFFFC24A</color>
     <color name="petal_orange">#FFF4703F</color>

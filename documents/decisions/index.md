@@ -24,7 +24,8 @@ summary leaves out.
   yes, [[003]]'s password handling gets simpler and should be revisited.
 - **Q3** Does the item list accept a time range on Photos 1.9.1? **Yes**, `start_time` and
   `end_time` (plan 001, 2026-09-02). **Resolved:** [[005]] amended the same day to fetch by
-  range; the owner accepted the unverified end-inclusivity as a one-second edge.
+  range; the second run verified both ends inclusive, so the one-second edge the owner had
+  accepted does not exist.
 - **Q4** DSM auto-block sees only the reverse proxy's address ([[004]], second amendment), so a
   few failed logins from any household member would ban the proxy for everyone. Allowlist the
   proxy in DSM and rate-limit the login call in nginx, or accept it. **Resolved 2026-09-02:**

@@ -5,17 +5,20 @@ import androidx.lifecycle.viewModelScope
 import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.core.DayBucket
 import com.hawwwran.photosonthisday.core.MonthDay
+import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.core.nextDay
 import com.hawwwran.photosonthisday.core.photosOn
 import com.hawwwran.photosonthisday.core.previousDay
 import com.hawwwran.photosonthisday.core.selectDay
 import com.hawwwran.photosonthisday.data.DayIndexData
 import com.hawwwran.photosonthisday.data.DayIndexRepository
+import com.hawwwran.photosonthisday.data.RefreshResult
 import com.hawwwran.photosonthisday.likes.LikeRepository
 import com.hawwwran.photosonthisday.likes.SyncResult
 import com.hawwwran.photosonthisday.likes.likeKey
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -52,7 +55,7 @@ sealed interface DaySectionHeader {
 /** One rendered group: its header, its photos, and (for a year) its load state. */
 data class DaySection(
     val header: DaySectionHeader,
-    val items: List<com.hawwwran.photosonthisday.api.PhotoItem>,
+    val items: List<PhotoItem>,
     val loading: Boolean = false,
     val error: String? = null,
 )
@@ -91,8 +94,8 @@ class DayViewModel(
     private val likes: LikeRepository,
     private val session: Session,
     initialToday: MonthDay,
-    likedByYearFlow: kotlinx.coroutines.flow.Flow<Boolean>,
-    private val todayProvider: () -> MonthDay = { com.hawwwran.photosonthisday.core.currentMonthDay() },
+    likedByYearFlow: Flow<Boolean>,
+    private val todayProvider: () -> MonthDay = { currentMonthDay() },
 ) : ViewModel() {
 
     /** Layout of the always-on-top liked group: false = one blob, true = split by year. */
@@ -126,19 +129,20 @@ class DayViewModel(
      */
     private val orderKeys = MutableStateFlow<Set<String>>(emptySet())
 
-    /** The grid layout as a list of sections, per the liked-by-year preference. */
+    /**
+     * The grid layout as a list of sections, per the liked-by-year preference. Eager, because its
+     * inputs are hot state flows already, so [viewerSnapshot] can read its value at any moment.
+     */
     val display: StateFlow<List<DaySection>> =
         combine(_sections, orderKeys, likedByYear) { years, order, byYear ->
             buildSections(years, order, byYear)
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /**
-     * A snapshot of the shown day as one display-ordered sequence (liked first), for the viewer's
-     * pager. Read directly from the current sections, not a lazily-started flow, so it is correct
-     * the moment the viewer opens; the viewer holds this fixed so a like toggle does not reshuffle.
+     * The shown day as one display-ordered sequence (liked first), for the viewer's pager, which
+     * holds it fixed so a like toggle does not reshuffle the pages under the finger.
      */
-    fun viewerSnapshot(): List<ViewerItem> =
-        buildSections(_sections.value, orderKeys.value, likedByYear.value).flatMap { it.items.map(::ViewerItem) }
+    fun viewerSnapshot(): List<PhotoItem> = display.value.flatMap { it.items }
 
     /**
      * The day's sections in render order. Liked always come first: as one [DaySectionHeader.Liked]
@@ -147,7 +151,7 @@ class DayViewModel(
      * the current day never moves an item until the day reloads.
      */
     private fun buildSections(years: List<YearSection>, order: Set<String>, byYear: Boolean): List<DaySection> {
-        fun liked(item: com.hawwwran.photosonthisday.api.PhotoItem) = order.contains(likeKey(item.space, item.unitId))
+        fun liked(item: PhotoItem) = order.contains(likeKey(item.space, item.unitId))
         fun shown(section: DaySection) = section.items.isNotEmpty() || (section.loading && section.error == null)
 
         val likedTop: List<DaySection> = if (byYear) {
@@ -196,7 +200,7 @@ class DayViewModel(
     init {
         viewModelScope.launch {
             val result = repository.refreshIfStale(session)
-            loadError.value = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message
+            loadError.value = (result as? RefreshResult.Failed)?.message
         }
         viewModelScope.launch { syncLikes() } // pull the NAS likes so they show, push any pending
         // Reload the year sections whenever the shown day changes or a refresh is asked for. A
@@ -231,14 +235,11 @@ class DayViewModel(
         _refreshing.value = true
         viewModelScope.launch {
             val result = repository.refresh(session)
-            loadError.value = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message
+            loadError.value = (result as? RefreshResult.Failed)?.message
             reloadTick.update { it + 1 }
             _refreshing.value = false
         }
     }
-
-    /** Retry after the first refresh failed with no cache to show (the Problem screen). */
-    fun retry() = refresh()
 
     private fun computeView(data: DayIndexData, selected: MonthDay?, today: MonthDay, error: String?): DayViewState {
         if (data.days.isNotEmpty()) return shownFor(data.days, selected, today)
@@ -250,7 +251,7 @@ class DayViewModel(
     }
 
     /** Toggle the like locally at once, then reconcile with the NAS. */
-    fun toggleLike(item: com.hawwwran.photosonthisday.api.PhotoItem) {
+    fun toggleLike(item: PhotoItem) {
         viewModelScope.launch {
             likes.toggle(item.space, item.unitId)
             syncLikes()
@@ -259,11 +260,11 @@ class DayViewModel(
 
     // ---- multi-selection ----
 
-    fun startSelect(item: com.hawwwran.photosonthisday.api.PhotoItem) {
+    fun startSelect(item: PhotoItem) {
         _selected.update { it + likeKey(item.space, item.unitId) }
     }
 
-    fun toggleSelect(item: com.hawwwran.photosonthisday.api.PhotoItem) {
+    fun toggleSelect(item: PhotoItem) {
         val key = likeKey(item.space, item.unitId)
         _selected.update { if (key in it) it - key else it + key }
     }
@@ -283,7 +284,7 @@ class DayViewModel(
     }
 
     /** The selected items, resolved from the shown day, in display order. */
-    fun selectedItems(): List<com.hawwwran.photosonthisday.api.PhotoItem> {
+    fun selectedItems(): List<PhotoItem> {
         val keys = _selected.value
         return _sections.value.flatMap { it.items }.filter { likeKey(it.space, it.unitId) in keys }
     }
@@ -345,7 +346,7 @@ class DayViewModel(
             launch {
                 val result = repository.fetchDay(session, year, monthDay, expectedCount = yearBucket.itemCount, force = force)
                 updateYear(year) {
-                    it.copy(loading = false, error = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message)
+                    it.copy(loading = false, error = (result as? RefreshResult.Failed)?.message)
                 }
             }
         }

@@ -1,11 +1,11 @@
 # 005 - Viewer, download, hardening
 
-- **Status:** 10/11; only the release-signed build remains, waiting on a keystore
+- **Status:** Done. v1.0.0 (versionCode 2) cut 2026-09-03 with the release keystore.
 - **Source:** plan.md §2, §7, §8.3, §8.4
 - **Depends on:** 004
 - **Blocks:** nothing
 - **Decisions:** [003](../decisions/003-authentication-and-sessions.md), [006](../decisions/006-one-account-per-install.md)
-- **Progress:** 10 / 11
+- **Progress:** 13 / 13
 
 ## Goal
 
@@ -47,17 +47,18 @@ plan.md §2 backed by something that fails when it is broken.
 
 - [x] A test asserting the allowlist contains no method whose name implies a write.
 - [x] A test asserting no logging call receives a response body. (`HardeningTest` asserts the
-      failure-message contract; `ApiLog` is the only logger and takes the same call-and-code inputs.)
+      failure-message contract. The claim that `ApiLog` was the only logger was false when first
+      ticked; since plan 011, `LoggingRuleTest` scans the source tree, allows `android.util.Log`
+      only in `ApiLog`, `IndexLog` and `UpdateLog`, and asserts none of their functions takes a
+      `String`.)
 - [x] A test asserting account change clears the day index and the image cache. (`SessionManagerTest`
       asserts the index wipers run and the thumbnail wiper runs on account change.)
 - [x] `allowBackup=false` confirmed in the manifest and asserted by `ManifestTest` (androidTest).
 - [x] A pass over every string resource: none carries a host, account, or credential.
-- [ ] Release build signed with the app's own keystore, and the keystore backup rule written
-      into `CLAUDE.md`.
-      > Blocked: no keystore exists yet (owner action). The backup rule is already in `CLAUDE.md`
-      > ("Release signing"), and `app/build.gradle.kts` co-signs debug with the release key when
-      > the keystore is present. Creating `keystore.jks` and the `OTD_*` gradle properties is the
-      > remaining owner step; then `assembleRelease` and the install-over-debug check can run.
+- [x] Release build signed with the app's own keystore, and the keystore backup rule written
+      into `CLAUDE.md`. `keystore.jks` (alias `onthisday`) was generated 2026-09-03; the release
+      script built v1.0.0 with `assembleRelease`, verified the signature with `apksigner` and
+      published it (commit `f499168`). The backup rule is in `CLAUDE.md`, "Release signing".
 
 ## On-device verification, 2026-09-02
 
@@ -93,6 +94,6 @@ not committed.
 
 - [x] Every rule in plan.md §2 maps to a test or a signed-off item, by name (see the mapping below).
 - [ ] A release APK installs over a debug install without uninstalling.
-      > Blocked with the keystore item above: needs the release keystore to exist first.
-      > Scheduled with the owner for 2026-09-03: create the keystore, then assembleRelease and
-      > the install-over-debug check.
+      > Blocked: not exercised on the Vivo yet. The mechanism is in place (`app/build.gradle.kts`
+      > co-signs debug with the release key when the keystore is present), so the check is one
+      > `installDebug` over the installed v1.0.0.

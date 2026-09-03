@@ -7,10 +7,8 @@ import com.hawwwran.photosonthisday.api.PhotoItem
 import com.hawwwran.photosonthisday.api.Space
 import com.hawwwran.photosonthisday.api.TimelineApi
 import com.hawwwran.photosonthisday.core.DayBucket
-import com.hawwwran.photosonthisday.core.DaySelection
 import com.hawwwran.photosonthisday.core.MonthDay
 import com.hawwwran.photosonthisday.core.dayRangeUtc
-import com.hawwwran.photosonthisday.core.selectDay
 import com.hawwwran.photosonthisday.session.AccountDataWiper
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.async
@@ -20,25 +18,17 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 
-/** What the day screen shows before any photo is fetched (plan 004 fills [DaySelection]). */
-sealed interface DayIndexState {
-    /** The index has never been fetched and nothing is cached yet. */
-    data object Loading : DayIndexState
-
-    /** The index has been fetched and the whole library is empty. Distinct from "nothing today". */
-    data object NoPhotos : DayIndexState
-
-    /** A day to show: today across the years, or the nearest day that has anything. */
-    data class Ready(val selection: DaySelection) : DayIndexState
-}
-
 sealed interface RefreshResult {
     data object Success : RefreshResult
     data object SessionExpired : RefreshResult
     data class Failed(val message: String) : RefreshResult
 }
 
-/** The stored histogram, merged across namespaces, and when it was last refreshed (null if never). */
+/**
+ * The stored histogram, merged across namespaces, and when it was last refreshed (null if never).
+ * The day to show is the view model's to pick (`selectDay` over [days]); the repository knows
+ * nothing about "today".
+ */
 data class DayIndexData(val days: List<DayBucket>, val refreshedAt: Long?)
 
 /**
@@ -51,7 +41,6 @@ class DayIndexRepository(
     private val store: DayIndexStore,
     private val timelineApi: TimelineApi,
     private val itemApi: ItemApi,
-    private val today: () -> MonthDay,
     private val now: () -> Long = System::currentTimeMillis,
     /** Called with the sid that met a dead session, so the app re-prompts for that session only. */
     private val onSessionExpired: suspend (sid: String) -> Unit = {},
@@ -62,17 +51,6 @@ class DayIndexRepository(
     fun observeDays(): Flow<DayIndexData> =
         combine(store.buckets(), store.refreshedAt()) { buckets, refreshedAt ->
             DayIndexData(merge(buckets), refreshedAt)
-        }
-
-    /** The day to show, recomputed whenever the stored index changes. */
-    fun observe(): Flow<DayIndexState> =
-        combine(store.buckets(), store.refreshedAt()) { buckets, refreshedAt ->
-            val selection = selectDay(merge(buckets), today())
-            when {
-                selection != null -> DayIndexState.Ready(selection)
-                refreshedAt != null -> DayIndexState.NoPhotos
-                else -> DayIndexState.Loading
-            }
         }
 
     /**

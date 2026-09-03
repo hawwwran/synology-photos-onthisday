@@ -83,13 +83,23 @@ else throws before a request exists.
 | `SYNO.FotoTeam.Browse.Item` | `list` | 7 | Shared items of a day |
 | `SYNO.Foto.Browse.Item` | `count` | 7 | Cross-check the histogram total |
 | `SYNO.FotoTeam.Browse.Item` | `count` | 7 | Cross-check the histogram total |
+| `SYNO.Foto.Browse.Folder` | `get` | 2 | A personal item's folder path, for the info sheet |
+| `SYNO.FotoTeam.Browse.Folder` | `get` | 2 | A shared item's folder path, for the info sheet |
 | `SYNO.Foto.Thumbnail` | `get` | 2 | Personal thumbnails, GET |
+| `SYNO.FotoTeam.Thumbnail` | `get` | 2 | Shared thumbnails, GET |
 | `SYNO.Foto.Download` | `download` | 2 | Save the personal original |
 | `SYNO.FotoTeam.Download` | `download` | 2 | Save the shared original |
-| `SYNO.FotoTeam.Thumbnail` | `get` | 2 | Shared thumbnails, GET |
+| `SYNO.FileStation.Download` | `download` | 2 | Read the app's own `likes.json` back (decision 008) |
 
-Every method above is a read. No album, sharing, folder, upload, setting or download method was
-called, so nothing here describes them.
+And the one write, held in a separate allowlist so the read set above can be checked on its own:
+
+| Api | Method | Version | Purpose |
+| --- | --- | --- | --- |
+| `SYNO.FileStation.Upload` | `upload` | 2 | Save the app's own `likes.json` (decision 008) |
+
+Every Photos method above is a read; the only write goes to File Station and touches nothing but
+the app's own file. No album, sharing, setting or other folder method is called, so nothing here
+describes them. `Allowlist.kt` is the source; this table follows it.
 
 ## Signing in
 
@@ -209,11 +219,11 @@ allowlist. This was verified through the app against the live NAS rather than as
 window 1000000000..1100000000 (September 2001 to November 2004) both namespaces returned items
 taken in 2004 instead of the newest ones. `time_start` and `time_end` were silently ignored: the
 response was identical to the unfiltered call, which is the failure mode that makes the wrong
-spelling dangerous. Not established: whether the ends are inclusive. Decision 005 was amended
-the same day to fetch a day as `start_time` = UTC midnight, `end_time` = start + 86399; the
-owner accepted that a photo taken at exactly 23:59:59 may be missed if `end_time` turns out
-exclusive. The 2004 results are consistent with the filter comparing against `time` the same
-way the day buckets are cut.
+spelling dangerous. Decision 005 was amended the same day to fetch a day as `start_time` = UTC
+midnight, `end_time` = start + 86399. The 2004 results are consistent with the filter comparing
+against `time` the same way the day buckets are cut. (Superseded on inclusivity: the first run
+left open whether the ends are inclusive; the second run settled it, both ends inclusive, see
+"Update, second run" under U1. The 23:59:59 edge the owner had accepted is not an edge.)
 
 ### The retired mechanism, checked once before retiring it
 

@@ -10,6 +10,7 @@ import coil3.request.ErrorResult
 import coil3.request.ImageResult
 import coil3.request.crossfade
 import com.hawwwran.photosonthisday.api.ApiCall
+import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.ApiLog
 import com.hawwwran.photosonthisday.api.acceptsImageResponse
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +57,7 @@ internal class ImageResponseGuard : okhttp3.Interceptor {
             method = url.queryParameter("method") ?: "?",
             version = url.queryParameter("version")?.toIntOrNull() ?: 0,
         )
-        ApiLog.malformed(call, "HTTP ${response.code}, type '$type'")
+        ApiLog.failure(ApiFailure.Malformed(call, "HTTP ${response.code}, type '$type'"))
         throw IOException("not an image: HTTP ${response.code}, type '$type'")
     }
 }

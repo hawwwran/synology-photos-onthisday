@@ -8,6 +8,7 @@ import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.TimelineApi
 import com.hawwwran.photosonthisday.core.DayBucket
 import com.hawwwran.photosonthisday.core.MonthDay
+import com.hawwwran.photosonthisday.core.selectDay
 import com.hawwwran.photosonthisday.session.Session
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -37,7 +38,6 @@ class DayIndexRepositoryTest {
         store = store,
         timelineApi = TimelineApi(SynologyClient(OkHttpClient())),
         itemApi = ItemApi(SynologyClient(OkHttpClient())),
-        today = { today },
         now = { clock },
         onSessionExpired = onExpired,
     )
@@ -74,14 +74,18 @@ class DayIndexRepositoryTest {
         nas.route("api=${space.apiPrefix}.Browse.Item", "method=list", *more, body = body)
 
     @Test
-    fun `nothing stored and never refreshed is Loading`() = runTest {
-        assertEquals(DayIndexState.Loading, repo().observe().first())
+    fun `nothing stored and never refreshed is empty with no stamp, which the screen shows as loading`() = runTest {
+        val data = repo().observeDays().first()
+        assertTrue(data.days.isEmpty())
+        assertNull(data.refreshedAt)
     }
 
     @Test
-    fun `refreshed but empty is NoPhotos, not Loading`() = runTest {
+    fun `refreshed but empty carries the stamp, which the screen shows as no photos`() = runTest {
         store.seedRefreshedAt(clock)
-        assertEquals(DayIndexState.NoPhotos, repo().observe().first())
+        val data = repo().observeDays().first()
+        assertTrue(data.days.isEmpty())
+        assertEquals(clock, data.refreshedAt)
     }
 
     @Test
@@ -90,13 +94,13 @@ class DayIndexRepositoryTest {
         store.seed(Space.SHARED, listOf(DayBucket(2024, MonthDay(9, 2), 5)))
         store.seedRefreshedAt(clock)
 
-        val state = repo().observe().first() as DayIndexState.Ready
+        val selection = selectDay(repo().observeDays().first().days, today)!!
 
-        assertEquals(MonthDay(9, 2), state.selection.monthDay)
-        assertFalse(state.selection.isFallback)
+        assertEquals(MonthDay(9, 2), selection.monthDay)
+        assertFalse(selection.isFallback)
         // 2024 personal 3 + shared 5 merged to one bucket of 8, plus 2019's 12.
-        assertEquals(listOf(2024 to 8, 2019 to 12), state.selection.years.map { it.year to it.itemCount })
-        assertEquals(20, state.selection.totalItems)
+        assertEquals(listOf(2024 to 8, 2019 to 12), selection.years.map { it.year to it.itemCount })
+        assertEquals(20, selection.totalItems)
         assertEquals(0, nas.requests.size)
     }
 
@@ -105,11 +109,11 @@ class DayIndexRepositoryTest {
         store.seed(Space.PERSONAL, listOf(DayBucket(2021, MonthDay(8, 30), 4)))
         store.seedRefreshedAt(clock)
 
-        val state = repo().observe().first() as DayIndexState.Ready
+        val selection = selectDay(repo().observeDays().first().days, today)!!
 
-        assertEquals(MonthDay(8, 30), state.selection.monthDay)
-        assertEquals(3, state.selection.daysFromToday)
-        assertTrue(state.selection.inThePast)
+        assertEquals(MonthDay(8, 30), selection.monthDay)
+        assertEquals(3, selection.daysFromToday)
+        assertTrue(selection.inThePast)
     }
 
     @Test

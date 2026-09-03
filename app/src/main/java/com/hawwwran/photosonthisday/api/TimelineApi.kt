@@ -2,9 +2,7 @@ package com.hawwwran.photosonthisday.api
 
 import com.hawwwran.photosonthisday.core.DayBucket
 import com.hawwwran.photosonthisday.core.MonthDay
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import okhttp3.HttpUrl
 
 /**
@@ -18,19 +16,12 @@ import okhttp3.HttpUrl
  */
 class TimelineApi(
     private val client: SynologyClient,
-    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val json: Json = AppJson,
 ) {
     suspend fun fetch(baseUrl: HttpUrl, space: Space, credentials: SessionCredentials): List<DayBucket> {
-        val data = client.call(baseUrl, Allowlist.timeline(space), credentials = credentials)
-        return flatten(decode(Allowlist.timeline(space), data))
-    }
-
-    private fun decode(call: ApiCall, data: JsonElement): TimelineData = try {
-        json.decodeFromJsonElement(TimelineData.serializer(), data)
-    } catch (e: SerializationException) {
-        throw ApiFailure.Malformed(call, "timeline response has an unexpected shape")
-    } catch (e: IllegalArgumentException) {
-        throw ApiFailure.Malformed(call, "timeline response has an unexpected shape")
+        val call = Allowlist.timeline(space)
+        val data = client.call(baseUrl, call, credentials = credentials)
+        return flatten(json.decodeOrMalformed(call, TimelineData.serializer(), data, "timeline"))
     }
 
     companion object {

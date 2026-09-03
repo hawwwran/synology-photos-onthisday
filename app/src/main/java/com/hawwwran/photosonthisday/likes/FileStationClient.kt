@@ -4,6 +4,7 @@ import com.hawwwran.photosonthisday.api.Allowlist
 import com.hawwwran.photosonthisday.api.ApiCall
 import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.ApiLog
+import com.hawwwran.photosonthisday.api.AppJson
 import com.hawwwran.photosonthisday.api.Envelope
 import com.hawwwran.photosonthisday.api.SessionCredentials
 import com.hawwwran.photosonthisday.api.SynologyClient
@@ -30,7 +31,7 @@ import java.io.IOException
  */
 class FileStationClient(
     private val http: OkHttpClient,
-    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val json: Json = AppJson,
 ) {
     /**
      * The file's bytes, or null if it does not exist yet. Other failures throw. The file and a
@@ -56,7 +57,7 @@ class FileStationClient(
                 http.newCall(request).execute().use { response ->
                     // This DSM answers a missing file with HTTP 404 rather than a JSON 408; both mean "not yet".
                     if (response.code == 404) {
-                        ApiLog.dsmError(call, FILE_NOT_FOUND)
+                        ApiLog.failure(ApiFailure.DsmError(call, FILE_NOT_FOUND)) // normal on the first run
                         return@use null
                     }
                     if (!response.isSuccessful) throw malformed(call, "HTTP ${response.code}")
@@ -67,15 +68,14 @@ class FileStationClient(
                             bytes
                         }
                         is Envelope.Error -> {
-                            ApiLog.dsmError(call, envelope.code)
-                            if (envelope.code == FILE_NOT_FOUND) null else throw ApiFailure.fromDsmCode(call, envelope.code)
+                            val failure = ApiFailure.fromDsmCode(call, envelope.code).also(ApiLog::failure)
+                            if (envelope.code == FILE_NOT_FOUND) null else throw failure
                         }
                         is Envelope.Success -> throw malformed(call, "download answered an envelope, not a file")
                     }
                 }
             } catch (e: IOException) {
-                ApiLog.transport(call, e)
-                throw ApiFailure.Transport(call, e)
+                throw ApiFailure.Transport(call, e).also(ApiLog::failure)
             }
         }
 
@@ -104,24 +104,18 @@ class FileStationClient(
                     if (!response.isSuccessful) throw malformed(call, "HTTP ${response.code}")
                     when (val envelope = json.classifyEnvelope(response.body.string())) {
                         is Envelope.Success -> ApiLog.ok(call)
-                        is Envelope.Error -> {
-                            ApiLog.dsmError(call, envelope.code)
-                            throw ApiFailure.fromDsmCode(call, envelope.code)
-                        }
+                        is Envelope.Error -> throw ApiFailure.fromDsmCode(call, envelope.code).also(ApiLog::failure)
                         // A body that is not an envelope is not a confirmation: the file may never have been written.
                         is Envelope.NotAnEnvelope -> throw malformed(call, envelope.detail)
                     }
                 }
             } catch (e: IOException) {
-                ApiLog.transport(call, e)
-                throw ApiFailure.Transport(call, e)
+                throw ApiFailure.Transport(call, e).also(ApiLog::failure)
             }
         }
 
-    private fun malformed(call: ApiCall, detail: String): ApiFailure.Malformed {
-        ApiLog.malformed(call, detail)
-        return ApiFailure.Malformed(call, detail)
-    }
+    private fun malformed(call: ApiCall, detail: String): ApiFailure.Malformed =
+        ApiFailure.Malformed(call, detail).also(ApiLog::failure)
 
     private companion object {
         const val FILE_NOT_FOUND = 408 // File Station: no such file or directory

@@ -20,13 +20,13 @@ per-account access and the app implements no permission logic. That is
 
 | Area | State |
 | --- | --- |
-| Gradle build | Works. `./gradlew testDebugUnitTest assembleDebug` is green, 6 tests pass |
+| Gradle build | Works. `./gradlew testDebugUnitTest assembleDebug` is green (117 JVM tests as of 2026-09-03) |
 | App | Full path to the day screen: sign-in, day index in Room, and the day grid with per-year sections and Coil thumbnails over `X-SYNO-TOKEN`. Verified on the Vivo V2145 against the live NAS |
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-005 done bar the release build. 006 (likes on the NAS) built, live test pending |
-| Decisions | 001-007. 002, 004 and 005 amended today; Q1, Q3, Q4 closed |
+| Plans | 001-006 done. 007-011 (the code-review follow-up of 2026-09-03) executed; their device checks are the open items |
+| Decisions | 001-008. 003, 004, 005, 006 and 008 amended 2026-09-03 by plans 007-010; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
 
@@ -55,11 +55,12 @@ Likes (plan 006) are verified on device: like/unlike round-trips through `likes.
 (File Station Download and Upload both ok), liked items show first, and multi-select batch like,
 download and share work. The likes folder defaults to `/home/OnThisDay`, editable in Settings.
 
-One thing remains, and it needs the keystore:
-
-1. **Create the release keystore** (`keystore.jks` at the repo root + the `OTD_*` gradle
-   properties in `~/.gradle/gradle.properties`, see `CLAUDE.md`), then `./gradlew assembleRelease`
-   and confirm a release APK installs over a debug install. This is plan 005's last box.
+The release keystore exists (2026-09-03) and v1.0.0 was cut with it. A whole-project code review
+the same day produced plans 007-011, executed the same day in a session with no device attached:
+every code change is in and unit-tested, and each plan lists the device checks still to run on the
+Vivo (sign-out and re-login without an expiry bounce, the 4-to-5 migration over v1.0.0, likes
+under rapid toggling, save and video and the update flow, the banner inset). Run those, tick the
+boxes, then cut the next release.
 
 Everything else is done and verified on device: sign-in; the day grid with browsing (prev/next,
 date picker) and multi-select; the viewer with photo/video swipe, pinch-to-fit, video playback,
@@ -87,7 +88,7 @@ without the names.
 - Personal **and** shared space, merged. Every call once per namespace; rows keep their namespace.
 - Session id stored, password never. Expiry re-prompts. Trusted-device id kept. Built in plan 002.
 - Viewer (with in-app video playback via ExoPlayer), save-to-gallery of the original, settings
-  and the §2 hardening tests are built (plan 005). Release build deferred to 2026-09-03.
+  and the §2 hardening tests are built (plan 005). Released as v1.0.0 on 2026-09-03.
 - Day browsing (prev/next, date picker) and full Czech localization with the "9. září" date format
   were added after plan 004 at the owner's request; see plan 004 "Extensions".
 - HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no

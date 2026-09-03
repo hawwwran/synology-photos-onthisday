@@ -8,7 +8,7 @@
 - **Decisions it touches:** [001](../decisions/001-web-api-is-the-only-source.md) and plan.md §2
   (both say Synology Photos is read-only), [002](../decisions/002-personal-and-shared-space.md)
   (two namespaces), [006](../decisions/006-one-account-per-install.md) (account-change wipe).
-- **Progress:** code complete; acceptance criteria await the live test
+- **Progress:** 15 / 21 (the six observation boxes in section 1 were dropped, see there)
 
 ## Goal
 
@@ -149,6 +149,10 @@ Writing must be as disciplined as reading is:
 - [ ] Write the findings into `documents/research/photos-web-api.md`; confirm the test item was
       reverted and no capture is committed.
 
+> Dropped, all six (2026-09-03, plan 011): decision 008 chose the File Station route, which needs
+> no Photos-endpoint observation, so nothing here was ever going to be run. The File Station
+> triples are now in the research allowlist table.
+>
 > The File Station route needs no Photos-endpoint observation. Its versions were read from
 > `SYNO.API.Info` (Upload v2-3, Download v1-2); the Upload/Download parameter shapes are from
 > Synology's documented File Station API. The one live check is tomorrow's test: that the account
@@ -190,8 +194,11 @@ Writing must be as disciplined as reading is:
 - [x] Liking an item writes `likes.json` to the NAS; sync reads it back (verified on device: File
       Station Download and Upload both ok, "sync ok").
 - [ ] Visible on a second device after a refresh (not tested; the mechanism is the shared NAS file).
+      > Blocked: no second device in the executing session of 2026-09-03. Plan 009 made the sync
+      > deterministic, so this is now a plain check.
 - [ ] A reinstall, or an account-change wipe and sign back in, restores the likes from the NAS
       (mechanism in place; not exercised on device yet).
+      > Blocked: no device attached in the executing session of 2026-09-03.
 - [x] Liked items appear first in the day view.
 - [x] Every write the app can make maps, by name, to a like operation; no destructive triple
       exists in the write allowlist (`HardeningTest`).

@@ -1,8 +1,6 @@
 package com.hawwwran.photosonthisday.api
 
-import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 import okhttp3.HttpUrl
@@ -13,7 +11,7 @@ import okhttp3.HttpUrl
  */
 class ItemApi(
     private val client: SynologyClient,
-    private val json: Json = Json { ignoreUnknownKeys = true },
+    private val json: Json = AppJson,
 ) {
     suspend fun count(baseUrl: HttpUrl, space: Space, credentials: SessionCredentials): Int {
         val data = client.callObject(baseUrl, Allowlist.itemCount(space), credentials = credentials)
@@ -45,16 +43,8 @@ class ItemApi(
             "additional" to """["thumbnail","resolution"]""",
         )
         val data = client.call(baseUrl, call, params, credentials)
-        val dtos = decode(call, data).list
+        val dtos = json.decodeOrMalformed(call, ItemListData.serializer(), data, "item").list
         return ItemPage(items = dtos.mapNotNull { it.toPhotoItem(space) }, serverCount = dtos.size)
-    }
-
-    private fun decode(call: ApiCall, data: JsonElement): ItemListData = try {
-        json.decodeFromJsonElement(ItemListData.serializer(), data)
-    } catch (e: SerializationException) {
-        throw ApiFailure.Malformed(call, "item response has an unexpected shape")
-    } catch (e: IllegalArgumentException) {
-        throw ApiFailure.Malformed(call, "item response has an unexpected shape")
     }
 }
 

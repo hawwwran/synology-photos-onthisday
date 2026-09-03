@@ -1,12 +1,13 @@
 # 011 - Documentation, the logging rule and dead code
 
-- **Status:** Not started. Written from the whole-project code review of 2026-09-03.
+- **Status:** Done 2026-09-03, except the release cut in "On completion", which needs `main` pushed
+  (owner action).
 - **Source:** code review 2026-09-03: the quality findings (stale comments, plan headers, logging
   rule, duplication, dead code).
 - **Depends on:** 007, 008, 009, 010. Run last: it records the state the code is actually in.
 - **Blocks:** the next release.
 - **Decisions:** none new. Touches the index and Q3 wording.
-- **Progress:** 0 / 14
+- **Progress:** 14 / 14
 
 ## Goal
 
@@ -106,49 +107,68 @@ One `ApiLog.failure(f: ApiFailure)` that logs `f.message`, with throw sites writ
 
 ### 1. Comments and research
 
-- [ ] Every row of table A corrected; the research doc's allowlist table lists all `Allowlist.kt`
-      triples (read and write) and the sentence after it is true; the U3 "not established" paragraph
-      is marked superseded; Q3 in `decisions/index.md` reworded.
-- [ ] `git grep -n "not verified\|pre-release\|Version 2\|carries \`_sid\`"` returns nothing stale.
+- [x] Every row of table A corrected: `DayRange` says inclusive and cites the run; the research
+      allowlist table carries both `Browse.Folder` rows, `FileStation.Download`, and a second table
+      for the one write, with the sentence after it true again; the U3 paragraph carries a
+      superseded note pointing at the U1 update; Q3 reworded. `AppDatabase`, `Thumbnail`,
+      `OnThisDayApp` and `IndexLog` were fixed by plans 007 and 008 and re-checked.
+- [x] The grep returns two hits, both true: decision 005's 2026-09-02 amendment says inclusivity
+      "was not verified", which was so on that date and is answered by the dated 2026-09-03
+      amendment under it (records are not rewritten in hindsight); the research says the download
+      "still carries `_sid` in the query", which it does.
 
 ### 2. Plan headers
 
-- [ ] Plan 005 header, boxes and `> Blocked` notes reflect the shipped release; `Progress` equals the
-      box count.
-- [ ] Plan 006 `Progress` filled; section-1 boxes resolved; acceptance items re-checked against
-      plan 009's device test.
-- [ ] `index.md` rows for 005-011 current; dependency graph extended; `HANDOFF.md` corrected.
+- [x] Plan 005: Status "Done", `13 / 13`, the release box ticked with the keystore date and the
+      `apksigner` verification, the install-over-debug acceptance left open with an honest note.
+- [x] Plan 006: `15 / 21`, the six section-1 boxes marked dropped with the reason, the two open
+      acceptance items noted as blocked on a device (plan 009's device test did not run either).
+- [x] `index.md` rows 005-011 current with the same-day execution; graph unchanged (it already held
+      007-011); `HANDOFF.md`: keystore paragraph replaced, test count and plan/decision rows updated.
 
 ### 3. Logging guard
 
-- [ ] `LoggingRuleTest` (JVM): scans `app/src/main/java`, allows `Log.` only in the named logger
-      files, and asserts their format strings; the 005 tick's claim is now true. Update the tick text
-      in plan 005 to name the test.
-- [ ] `ApiLog.failure(ApiFailure)` replaces the three per-kind loggers; throw sites use `.also`.
+- [x] `LoggingRuleTest`: `android.util.Log` only in `api/ApiLog.kt`, `data/IndexLog.kt`,
+      `update/UpdateLog.kt`, and no function in those files takes a `String`, `CharSequence` or
+      `Any`. Verified the guard bites: a `Log.i("PhotosLikes", "sync start, folder=$dir")` added to
+      `LikeRepository` failed the test, then was reverted. Plan 005's tick text names the test.
+- [x] `ApiLog` is `ok(call)` and `failure(ApiFailure)`; the fourteen `dsmError`/`malformed`/`transport`
+      call sites are `throw X.also(ApiLog::failure)` or `ApiLog.failure(X)` where nothing is thrown.
 
 ### 4. Duplication
 
-- [ ] One byte formatter; the three privates deleted.
-- [ ] Palette object in `ui/theme`; banner uses it; rose reconciled per the owner's choice;
-      `colors.xml` comment added.
-- [ ] `thumbnailRequest` helper (if 007 did not); one `Json`; one `decodeOrMalformed`.
-- [ ] `DayViewModel` imports used, `retry()` removed, `display` eager, `viewerSnapshot` reads it,
-      `ViewerItem` removed if nothing else needs it.
-- [ ] `UpdateChecker` cache via kotlinx-serialization (optional; skip with a note if time is short).
+- [x] `ui/Format.kt` `formatBytes` (binary, one decimal, dash for nothing) serves Settings, the
+      update modal and the info sheet; the three privates are gone (done while plan 010 rewrote the
+      modal).
+- [x] `ui/theme/Palette.kt`; `Theme.kt` and `UpdateBanner` read it; rose follows `colors.xml`
+      (`#FFC23B63`, the plan's default, owner not reachable); `colors.xml` says the two must match.
+- [x] `thumbnailRequest(context, ref, auth)` in `Thumbnail.kt`, used by the grid cell and the viewer;
+      `AppJson` in `api/Envelope.kt` is the one `Json`, the default of every client and store;
+      `Json.decodeOrMalformed` replaces the two identical try/catch pairs.
+- [x] `DayViewModel` uses its imports, `retry()` is gone (the Problem screen calls `refresh`),
+      `display` is `Eagerly`, `viewerSnapshot()` is `display.value.flatMap { it.items }`;
+      `ViewerItem` deleted, the viewer takes `List<PhotoItem>`.
+- [x] Done in plan 010: `UpdateChecker` reads GitHub and its cache with kotlinx-serialization
+      (`@Serializable CachedRelease`/`ParsedRelease`), which also made `UpdateCheckerTest` possible.
 
 ### 5. Dead code
 
-- [ ] Navigation dependency, `ACCESS_NETWORK_STATE`, `lastCheckAt`, `observe()`/`DayIndexState`
-      removed with tests ported; `releaseUrl` shown or removed.
-- [ ] `./gradlew testDebugUnitTest` and `assembleDebug` green after each removal commit.
+- [x] `navigation-compose` gone from `build.gradle.kts` and the version catalog; the app's
+      `ACCESS_NETWORK_STATE` declaration gone (media3-common still merges its own, see acceptance);
+      `UpdatePrefs.lastCheckAt` gone (plan 010); `observe()`/`DayIndexState` gone, the four tests
+      ported to `observeDays()` plus `selectDay`; `releaseUrl`/`htmlUrl` dropped (plan 010), the
+      modal already shows the release notes body.
+- [x] `./gradlew testDebugUnitTest assembleDebug` green: 117 tests, 24 MB debug APK.
 
 ## Acceptance criteria
 
-- [ ] A fresh session following `CLAUDE.md`'s reading list finds no statement contradicted by the
-      code (spot-check: `DayRange`, `AppDatabase`, `Thumbnail`, research allowlist, plans 005/006).
-- [ ] `LoggingRuleTest` passes and fails when a `Log.i` with a string parameter is added to a
-      repository (try it, then revert).
-- [ ] No unused dependency or permission in the debug APK's manifest (`aapt dump permissions`).
+- [x] Spot-checked `DayRange`, `AppDatabase`, `Thumbnail`, the research allowlist and plans 005/006
+      against the code on 2026-09-03.
+- [x] Passes; failed with the stray `Log.i` in `LikeRepository`; reverted.
+- [x] `aapt dump permissions`: `INTERNET`, `REQUEST_INSTALL_PACKAGES`, `WAKE_LOCK`, and
+      `ACCESS_NETWORK_STATE`, which the app no longer declares: `media3-common` 1.4.1 merges it in
+      (manifest merger report) for ExoPlayer's own network-type checks, so it stays. No dependency in
+      `build.gradle.kts` is unreferenced.
 
 ## On completion
 

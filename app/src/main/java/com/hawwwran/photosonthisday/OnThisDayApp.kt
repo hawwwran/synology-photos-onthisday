@@ -11,7 +11,6 @@ import com.hawwwran.photosonthisday.api.FolderApi
 import com.hawwwran.photosonthisday.api.ItemApi
 import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.TimelineApi
-import com.hawwwran.photosonthisday.core.currentMonthDay
 import com.hawwwran.photosonthisday.data.DayIndexRepository
 import com.hawwwran.photosonthisday.data.ImageSaver
 import com.hawwwran.photosonthisday.data.MediaSharer
@@ -106,7 +105,6 @@ class AppGraph(context: Context) {
         store = RoomDayIndexStore(database.dayIndexDao()),
         timelineApi = timelineApi,
         itemApi = itemApi,
-        today = { currentMonthDay() },
         onSessionExpired = { sid -> sessions.onSessionExpired(sid) },
     ).also { accountDataWipers += it }
 

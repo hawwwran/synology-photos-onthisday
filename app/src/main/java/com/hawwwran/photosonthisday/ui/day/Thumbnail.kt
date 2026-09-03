@@ -37,23 +37,25 @@ data class ThumbnailAuth(val baseUrl: HttpUrl, val sid: String, val token: Strin
 }
 
 /**
- * One grid cell. The disk- and memory-cache key is the unit and size, not the URL, so signing
- * out and back in reuses the cached image instead of downloading it again. The `X-SYNO-TOKEN`
- * header is required or the GET returns a JSON error (research U4); a decode failure of such a
- * body lands on the error state rather than being shown.
+ * The one way a thumbnail is requested, for the grid and the viewer alike. The disk- and
+ * memory-cache key is [ThumbnailRef.cacheId], not the URL, so signing out and back in reuses the
+ * cached image instead of downloading it again. The `X-SYNO-TOKEN` header is required or the GET
+ * returns a JSON error (research U4), which the loader's guard refuses (`data/ImageLoading.kt`).
  */
+fun thumbnailRequest(context: android.content.Context, ref: ThumbnailRef, auth: ThumbnailAuth): ImageRequest =
+    ImageRequest.Builder(context)
+        .data(ThumbnailUrls.get(auth.baseUrl, ref).toString())
+        .httpHeaders(auth.networkHeaders())
+        .memoryCacheKey(ref.cacheId)
+        .diskCacheKey(ref.cacheId)
+        .crossfade(true)
+        .build()
+
+/** One grid cell. */
 @Composable
 fun Thumbnail(ref: ThumbnailRef, auth: ThumbnailAuth, isVideo: Boolean, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val request = remember(ref, auth) {
-        ImageRequest.Builder(context)
-            .data(ThumbnailUrls.get(auth.baseUrl, ref).toString())
-            .httpHeaders(auth.networkHeaders())
-            .memoryCacheKey(ref.cacheId)
-            .diskCacheKey(ref.cacheId)
-            .crossfade(true)
-            .build()
-    }
+    val request = remember(ref, auth) { thumbnailRequest(context, ref, auth) }
     // A muted ground so a slow or failed cell reads as a photo slot, never the empty-day screen.
     Box(modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
         AsyncImage(

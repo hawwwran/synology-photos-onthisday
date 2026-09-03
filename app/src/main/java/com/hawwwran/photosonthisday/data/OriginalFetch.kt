@@ -1,6 +1,7 @@
 package com.hawwwran.photosonthisday.data
 
 import com.hawwwran.photosonthisday.api.Allowlist
+import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.ApiLog
 import com.hawwwran.photosonthisday.api.DownloadUrls
 import com.hawwwran.photosonthisday.api.Space
@@ -54,13 +55,13 @@ internal object OriginalFetch {
         val response = try {
             http.newCall(request).execute()
         } catch (e: IOException) {
-            ApiLog.transport(call, e)
+            ApiLog.failure(ApiFailure.Transport(call, e))
             return@withContext FetchFailure.TRANSPORT
         }
         response.use {
             val mime = response.header("Content-Type").orEmpty().substringBefore(';').trim()
             if (!response.isSuccessful || !(mime.startsWith("image/") || mime.startsWith("video/"))) {
-                ApiLog.malformed(call, "HTTP ${response.code}, type '$mime'")
+                ApiLog.failure(ApiFailure.Malformed(call, "HTTP ${response.code}, type '$mime'"))
                 return@withContext FetchFailure.NOT_A_FILE
             }
             try {
@@ -68,7 +69,7 @@ internal object OriginalFetch {
                 ApiLog.ok(call)
                 null
             } catch (e: NetworkReadException) {
-                ApiLog.transport(call, e.network)
+                ApiLog.failure(ApiFailure.Transport(call, e.network))
                 FetchFailure.TRANSPORT
             } catch (e: IOException) {
                 FetchFailure.LOCAL
