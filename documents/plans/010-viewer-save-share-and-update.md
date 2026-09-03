@@ -1,0 +1,200 @@
+# 010 - Viewer, save, share and the update flow
+
+- **Status:** Not started. Written from the whole-project code review of 2026-09-03.
+- **Source:** code review 2026-09-03: findings 7, 11, 13, 14, 15 and the `DayHost` duplication.
+- **Depends on:** 005 (the code it fixes). Independent of 007-009; `DayHost` is edited by 007 too,
+  so run 007 first to avoid a merge.
+- **Blocks:** 011.
+- **Decisions:** [004](../decisions/004-access-path-and-tls.md) (amend if minSdk changes: the
+  "cleartext blocked since API 28" statement then covers every supported level).
+- **Progress:** 0 / 14
+
+## Goal
+
+Save, share and video behave the same on every supported Android version, and the update flow
+never tells the user something false.
+
+## Owner decision needed first
+
+**minSdk.** The app declares `minSdk = 26` and `WRITE_EXTERNAL_STORAGE` with `maxSdkVersion=28`,
+but never requests the permission at runtime, so Save crashes on Android 8 and 9 (finding A). Two
+ways out:
+
+- **Raise minSdk to 29.** Removes the permission, the `Build.VERSION` branch in `ImageSaver`, and
+  the cleartext gap on API 26-27 (decision 004 says cleartext is blocked by the platform from 28).
+  Household phones are recent; the test device is Android 15. **Default in this plan.**
+- **Keep 26 and request the permission** at runtime before the first save on API 28 and below, with
+  a rationale string and a denied path.
+
+The executing session takes the default unless the owner says otherwise; note the choice in this
+plan.
+
+## Findings this plan fixes
+
+Line numbers are as of commit `c70ddb0`. Re-check them before editing.
+
+### A. Save crashes on API 26-28, and local write failures blame the NAS
+
+`ui/day/ImageSaver.kt:50` calls `resolver.insert` on a MediaStore collection. Below API 29 that
+needs `WRITE_EXTERNAL_STORAGE`, a runtime permission on API 23+; nothing requests it (`grep
+checkSelfPermission` finds nothing), so it throws `SecurityException`, a `RuntimeException`.
+`data/OriginalFetch.kt:46` catches `IOException` only, `DayHost.kt:96-107` and `:175-188` launch
+with no handler, so the process dies. The KDoc at `ImageSaver.kt:21` claims the manifest covers it,
+which is false for a dangerous permission. The file also declares package `...data` while living in
+`ui/day/`.
+
+Separately, `OriginalFetch.kt:43` runs `onBody` inside the network try. `ImageSaver` throws
+`IOException("MediaStore refused the insert")` and disk-full copies throw `IOException`, all reported
+as "NAS není dostupný." although the NAS answered. On API 29+ the MediaStore row is inserted without
+`IS_PENDING` and never deleted on failure, so a failed copy leaves a broken, gallery-visible file;
+repeated saves of the same item create `OnThisDay-N (1).jpg` duplicates.
+
+Fix: minSdk decision above; `onBody` runs after the network block with its own failure mapping
+("uložení selhalo" versus "NAS není dostupný"); `IS_PENDING=1` during the write, `0` on success,
+`resolver.delete(uri)` on failure; skip the insert when a row with the same `DISPLAY_NAME` and
+`RELATIVE_PATH` exists. Move `ImageSaver.kt` and `MediaSharer.kt` into `data/` or fix the package
+line. Every user-facing string comes from `strings.xml`.
+
+### B. Video plays on after Home or lock, and bypasses the app's HTTP policy
+
+`ui/day/ViewerScreen.kt:256` ties `playWhenReady` to the pager page only; there is no lifecycle
+observer in the file. Pressing Home or the power button keeps ExoPlayer decoding and the audio
+audible. The data source at `:246-248` is media3's `DefaultHttpDataSource` (HttpURLConnection),
+so `AppGraph.http`'s no-redirect, no-retry, timeout policy (`OnThisDayApp.kt:67-79`) does not apply
+to a request that carries `_sid` in its URL, and HttpURLConnection follows same-protocol redirects.
+
+Fix: pause on `ON_STOP` (and resume only if the page is still active) via
+`LocalLifecycleOwner`; use `androidx.media3:media3-datasource-okhttp` with `OkHttpDataSource.Factory`
+over `AppGraph.http`. The cookie form of the session is verified only for thumbnails (research), so
+`_sid` stays in the download and video URLs; note that in the code where the URL is built.
+
+### C. The update flow tells the user the wrong thing
+
+- Offline or HTTP error with no cached check: `update/UpdateChecker.kt:58` and `:85` resolve to
+  `null`, which `UpdateViewModel.runCheck` (`update/UpdateViewModel.kt:138`) maps to `NoUpdate`.
+  A user who taps "Zkontrolovat aktualizace" in airplane mode reads "Používáte nejnovější verzi".
+- `Installer.InstallStartOutcome.MISSING_PERMISSION` is handled exactly like `LAUNCHED`
+  (`UpdateViewModel.kt:120-125`): the modal closes after 800 ms while the system settings page opens,
+  with no explanation. On return the banner is back and Install re-downloads the whole APK, because
+  `UpdateDownloader.kt:57-59` never checks whether the target file already exists.
+- English literals ("Update failed", "Downloaded file missing", "Could not start installer",
+  "Download incomplete", raw `e.message`) reach `Text()` in a Czech UI via `UpdateUiState.Error`.
+- `UpdateChecker` and `UpdateDownloader` each build their own `OkHttpClient` (`UpdateChecker.kt:37`,
+  `UpdateDownloader.kt:48`). Derive from `AppGraph.http.newBuilder()` (GitHub asset downloads
+  redirect, so `followRedirects(true)` is set on the derived client, deliberately).
+
+Fix: a distinct `CheckFailed` state (or `NoUpdate(fromCache = false, offline = true)`) with its own
+string; `MISSING_PERMISSION` keeps the modal open with a one-line explanation and keeps the file,
+and after the permission is granted (`ON_RESUME`) Install reuses a complete target of the expected
+size; typed failure reasons mapped to `strings.xml` at render time; both clients derived from the
+app client.
+
+### D. Banner and status bar
+
+`update/UpdateBanner.kt:34` applies `statusBarsPadding()` to the banner. `windowInsetsPadding`
+consumes insets for its own subtree only, so the sibling `Box` in `ui/AppRoot.kt:64` still sees the
+full status-bar inset and `DayScreen`'s `TopAppBar`, the sign-in `Scaffold` and the viewer's top row
+pad for it a second time. With a banner showing, a blank strip the height of the status bar sits
+between the banner and the app bar. Memory notes the on-device banner check as still open, so this
+is the moment to do it.
+
+Fix: `Modifier.consumeWindowInsets(WindowInsets.statusBars)` on the `Box` while the banner is
+visible, or provide the padding once at the `Column` and stop the children padding.
+
+### E. The liked group can be missing on cold start
+
+`ui/day/DayViewModel.kt:303` freezes `orderKeys.value = likedKeys.value`. `likedKeys` (line 103)
+is `WhileSubscribed`, first subscribed by `DayHost.kt:58` after the first frame, and its Room query
+races the `dayView` chain that init (line 180) subscribes immediately. If `dayView` wins, the first
+`loadSections` runs with an empty liked set and no "Oblíbené" group appears until the day is
+reloaded. Plausible, not deterministic.
+
+Fix: `loadSections` reads the liked set directly (`likes.likedKeys.first()`, a DAO read) before
+freezing it, or `likedKeys` becomes `Eagerly` so it is primed with `dayView`.
+
+### F. `DayHost` duplication
+
+Save and share are written twice (`DayHost.kt:96-134` grid multi-select, `:153-188` viewer
+single), same launch, guard, `FileProvider.getUriForFile` with a literal authority, flags and
+`createChooser`. The authority literal appears a third time in `update/Installer.kt:38`. The
+single-share failure toast uses `result.reason` while the multi-share uses `R.string.selection_share_failed`.
+
+Fix: `saveItems(List<PhotoItem>)` and `shareItems(List<PhotoItem>)` helpers (`ACTION_SEND` for
+one, `ACTION_SEND_MULTIPLE` otherwise), the guards inside them; one `fileProviderAuthority(context)`
+function.
+
+### G. Grid double-tap (owner call, optional)
+
+`ui/day/DayScreen.kt:337` sets `onDoubleClick` on every tile, so Compose holds each single tap for
+the double-tap timeout (about 300 ms) before opening the viewer. The viewer already has a like
+button. Either accept the latency knowingly (note it in the code) or drop the grid double-tap. Not
+a defect; recorded so the trade-off is a decision rather than an accident.
+
+## Tasks
+
+### 1. minSdk and Save
+
+- [ ] Apply the minSdk decision (default 29): `build.gradle.kts`, manifest permission removed,
+      `ImageSaver` branch removed, decision 004 amended (dated line). If 26 is kept instead: runtime
+      permission request before the first save on API 28 and below, with a denied path.
+- [ ] `OriginalFetch`: `onBody` outside the network catch; a local failure maps to its own message;
+      no `Log.w("PhotosApi", ...)`, use `ApiLog`. Test with `MockWebServer`: an `onBody` that throws
+      `IOException` yields the local-failure reason, not the transport one.
+- [ ] `ImageSaver`: `IS_PENDING` on write, cleared on success, row deleted on failure; no duplicate
+      when the same item is saved twice. Package line matches the directory (move both files to
+      `data/`).
+- [ ] Every string shown by save and share lives in `strings.xml`.
+
+### 2. Video
+
+- [ ] Pause on `ON_STOP`, resume only for the active page. Device check: play a video, press power,
+      no audio.
+- [ ] `media3-datasource-okhttp` over `AppGraph.http`; the `_sid`-in-URL reason stays as a comment
+      where `DownloadUrls.original` is called.
+
+### 3. Update flow
+
+- [ ] A failed check with no cache is its own state and string; offline force-check never says
+      "latest version". Unit test on `UpdateViewModel` with a fake checker returning null.
+- [ ] `MISSING_PERMISSION` keeps the modal and the file, explains the settings page, and resumes
+      without a second download when a complete target of the expected size exists. Test the
+      downloader's reuse branch.
+- [ ] `UpdateUiState.Error` carries a typed reason; `strings.xml` supplies the text; no raw
+      `e.message` reaches the UI. `Log.i("OtdUpdate", ...)` lines log a reason class, not a message.
+- [ ] Both update clients derive from `AppGraph.http.newBuilder()` (`followRedirects(true)` on the
+      download client, with a comment saying why).
+
+### 4. Banner insets
+
+- [ ] Consume the status-bar inset below the banner; device screenshots with and without the banner
+      (`adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png`) show the app bar directly
+      under the banner. Update the memory note.
+
+### 5. Liked group on first load
+
+- [ ] `loadSections` freezes a liked set that is guaranteed loaded. Test: with likes in the fake DAO
+      and a cold start, the first `display` emission has the liked group.
+
+### 6. `DayHost`
+
+- [ ] `saveItems` / `shareItems` helpers replace the four blocks; one FileProvider authority
+      function used by `DayHost` and `Installer`; failure toasts consistent.
+- [ ] Grid double-tap: owner's call recorded in the plan and, if kept, a comment at the call site
+      naming the latency.
+
+## Acceptance criteria
+
+- [ ] Save works or fails with the right message on the Vivo; a failed save leaves no broken gallery
+      entry (test by revoking storage space or killing Wi-Fi mid-copy of a large video).
+- [ ] Video stops when the phone locks.
+- [ ] Airplane mode, Settings, check for updates: the modal says the check failed, not that the app
+      is current.
+- [ ] Banner visible: no blank strip under it.
+- [ ] Cold start on a day with liked photos shows the liked group at once.
+- [ ] `./gradlew testDebugUnitTest` green.
+
+## On completion
+
+1. Tick as verified, keep `Progress:` in step in the same commit.
+2. Update `index.md`; update `CLAUDE.md`'s device workflow section if minSdk changed.
+3. Update the memory note about the update feature verification.
