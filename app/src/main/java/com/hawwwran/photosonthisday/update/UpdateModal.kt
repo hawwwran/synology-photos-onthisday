@@ -2,6 +2,7 @@ package com.hawwwran.photosonthisday.update
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,8 @@ fun UpdateModal(
     onDismiss: () -> Unit,
     onCancelDownload: () -> Unit,
     onRetry: () -> Unit,
+    /** Plan B when the system installer refuses the APK: the Play Protect settings page. */
+    onOpenPlayProtect: () -> Unit,
 ) {
     if (!open) return
     AlertDialog(
@@ -38,7 +41,7 @@ fun UpdateModal(
             Column(
                 modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) { BodyContent(state) }
+            ) { BodyContent(state, onOpenPlayProtect) }
         },
         confirmButton = { ConfirmButton(state, onInstall, onCancelDownload, onRetry, onDismiss) },
         dismissButton = { DismissButton(state, onSkip) },
@@ -61,7 +64,7 @@ private fun titleFor(state: UpdateUiState): String = stringResource(
 )
 
 @Composable
-private fun BodyContent(state: UpdateUiState) {
+private fun BodyContent(state: UpdateUiState, onOpenPlayProtect: () -> Unit) {
     when (state) {
         UpdateUiState.Idle -> Text(stringResource(R.string.update_body_idle))
         is UpdateUiState.Checking -> CircularProgressIndicator()
@@ -86,6 +89,18 @@ private fun BodyContent(state: UpdateUiState) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            // The app never learns why the system installer failed (ACTION_VIEW has no result), so
+            // the likeliest cause is named here, where the user lands again after a failure: Play
+            // Protect scans sideloaded APKs and rejected v1.0.1 on the owner's phone (2026-09-03).
+            Spacer(Modifier.height(8.dp))
+            Text(
+                stringResource(R.string.update_play_protect_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(onClick = onOpenPlayProtect, contentPadding = PaddingValues(0.dp)) {
+                Text(stringResource(R.string.update_action_play_protect))
             }
         }
         is UpdateUiState.Downloading -> {

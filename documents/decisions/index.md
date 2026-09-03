@@ -26,6 +26,12 @@ summary leaves out.
   `end_time` (plan 001, 2026-09-02). **Resolved:** [[005]] amended the same day to fetch by
   range; the second run verified both ends inclusive, so the one-second edge the owner had
   accepted does not exist.
+- **Q5** Google Play Protect rejects the app's APK at install time on the owner's Android 15 phone
+  ("unknown developer", verdict REJECT after its cloud scan), so in-app updates fail until the user
+  pauses Play Protect scanning; the update dialog now says so and links to the setting (plan 010
+  addendum, 2026-09-03). Open: distribute through Google Play (internal or closed testing) or
+  register for Google's developer verification of sideloaded apps, so the signing key is known and
+  the pause is not needed on every household phone.
 - **Q4** DSM auto-block sees only the reverse proxy's address ([[004]], second amendment), so a
   few failed logins from any household member would ban the proxy for everyone. Allowlist the
   proxy in DSM and rate-limit the login call in nginx, or accept it. **Resolved 2026-09-02:**

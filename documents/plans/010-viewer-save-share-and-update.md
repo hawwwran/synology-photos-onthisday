@@ -210,6 +210,30 @@ a defect; recorded so the trade-off is a decision rather than an accident.
 - [x] Kept (the plan's default, owner not reachable); the comment at `PhotoCell`'s `combinedClickable`
       names the ~300 ms hold.
 
+## Addendum, 2026-09-03 evening: Play Protect, and the version bump that lived only on a tag
+
+Two things the device session found that the review had not:
+
+- **The failed update was Google Play Protect, not the app.** With v1.0.0 installed the in-app
+  update to v1.0.1 ended in the system installer's "install failed" screen, both for the owner
+  earlier in the day and in the session's own attempt. Logcat: `Finsky VerifyApps: Returning
+  package verification result ... result=REJECT` after an 8 s "Apk Analysis scan", then
+  `InstallFailed`. All three APKs (v1.0.0, v1.0.1, the co-signed debug build) carry the same
+  release certificate, `REQUEST_INSTALL_PACKAGES` was granted, and the installer had staged the file:
+  the verdict is Play Protect's alone, for an APK from a developer it does not know. With "scan
+  apps with Play Protect" paused the same install went `result=ALLOW` → `InstallSuccess`. The app
+  cannot learn the installer's outcome (`ACTION_VIEW` returns nothing), so at the owner's request
+  the "update available" dialog now names Play Protect as the likely cause of a failed install and
+  offers "Otevřít Play Protect", which opens the Play Store's Play Protect settings
+  (`com.google.android.gms.settings.VERIFY_APPS_SETTINGS`, falling back to the security settings).
+  The lasting fix would be distribution through Google Play or Google's developer verification for
+  sideloaded apps; recorded as an open question in `decisions/index.md`.
+- **`main` was behind the published version.** The release script commits the version bump in its
+  own clone and pushes only the tag, so the v1.0.1 bump (versionCode 3) existed only on `v1.0.1`
+  while `main` still said 1.0.0 / 2; the next release would have reused versionCode 3. The tag's
+  commit is cherry-picked onto `main` (`chore(release): v1.0.1`), as `f499168` had done by hand
+  for v1.0.0. The release script should push the bump commit too; noted in the index.
+
 ## Acceptance criteria
 
 - [ ] Save works or fails with the right message on the Vivo; a failed save leaves no broken gallery

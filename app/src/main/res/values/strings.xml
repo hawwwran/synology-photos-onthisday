@@ -104,6 +104,8 @@
     <string name="update_error_file_gone">Stažený soubor už neexistuje. Stáhněte aktualizaci znovu.</string>
     <string name="update_error_installer">Instalátor se nepodařilo spustit.</string>
     <string name="update_action_open_settings">Otevřít nastavení</string>
+    <string name="update_play_protect_hint">Pokud instalace selže, může ji blokovat Google Play Protect: aplikace od vývojářů, které nezná, někdy odmítne. V jeho nastavení lze kontrolu aplikací na chvíli vypnout, instalaci zopakovat a kontrolu zase zapnout.</string>
+    <string name="update_action_play_protect">Otevřít Play Protect</string>
     <string name="update_action_install">Nainstalovat</string>
     <string name="update_action_cancel">Zrušit</string>
     <string name="update_action_retry">Zkusit znovu</string>

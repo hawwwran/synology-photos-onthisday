@@ -37,7 +37,10 @@ release is cut.
 
 All five were executed on 2026-09-03 in a session with no device attached: every code change is in,
 117 JVM tests pass, and each plan lists the device checks left for the Vivo under `> Blocked`. The
-next release waits on those checks and on `main` being pushed.
+device checks started the same evening (plan 010 addendum records the Play Protect finding). The
+next release waits on `main` being pushed. Release-script note: it pushes only the tag, so after
+each release the `chore(release)` bump commit has to be cherry-picked onto `main` (done for v1.0.0
+and v1.0.1), or the script changed to push it.
 
 Owner decisions the plans left open were taken by default and are recorded in each plan: minSdk 29
 (010), the theme's rose follows `colors.xml` (011), the grid double-tap is kept with a comment (010).

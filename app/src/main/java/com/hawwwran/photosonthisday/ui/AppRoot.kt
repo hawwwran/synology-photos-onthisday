@@ -30,6 +30,7 @@ import com.hawwwran.photosonthisday.ui.signin.SignInViewModel
 import com.hawwwran.photosonthisday.update.UpdateBanner
 import com.hawwwran.photosonthisday.update.UpdateModal
 import com.hawwwran.photosonthisday.update.UpdateViewModel
+import com.hawwwran.photosonthisday.update.openPlayProtectSettings
 import com.hawwwran.photosonthisday.update.updateBannerShown
 import kotlinx.coroutines.launch
 
@@ -103,5 +104,6 @@ fun AppRoot(graph: AppGraph) {
         onDismiss = updateViewModel::onDismissModal,
         onCancelDownload = updateViewModel::onCancelDownload,
         onRetry = updateViewModel::onForceCheck,
+        onOpenPlayProtect = { openPlayProtectSettings(application) },
     )
 }
