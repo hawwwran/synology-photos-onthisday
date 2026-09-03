@@ -11,6 +11,7 @@
     <string name="signin_autoblock_note">NAS po několika neúspěšných pokusech adresu zablokuje. Zkontroluj údaje, než to zkusíš znovu; nic se neopakuje automaticky.</string>
 
     <string name="day_no_photos">V této knihovně zatím nejsou žádné fotky.</string>
+    <string name="day_retry">Zkusit znovu</string>
     <string name="day_empty">Na tento den nemáš žádné fotky.</string>
     <string name="day_fallback">Nejbližší den s fotkami, %1$s %2$s.</string>
     <string name="day_ago">zpět</string>
@@ -67,4 +68,32 @@
     <string name="settings_likes_folder">Složka pro lajky na NAS</string>
     <string name="settings_likes_folder_save">Uložit složku</string>
     <string name="settings_liked_by_year">Oblíbené rozdělit podle roku</string>
+
+    <!-- Updates -->
+    <string name="update_banner">Nová verze — v%1$s</string>
+    <string name="settings_version">Verze v%1$s</string>
+    <string name="update_check_now">Zkontrolovat aktualizace</string>
+    <string name="update_sub_idle">Klepnutím zkontrolujete aktualizace</string>
+    <string name="update_sub_uptodate">Máte nejnovější verzi</string>
+    <string name="update_sub_available">K dispozici je verze v%1$s</string>
+    <string name="update_sub_available_skipped">Verze v%1$s je k dispozici (přeskočena)</string>
+    <string name="update_sub_error">Server aktualizací je nedostupný — zkuste to znovu</string>
+    <string name="update_title_check">Zkontrolovat aktualizace</string>
+    <string name="update_title_checking">Kontrola aktualizací</string>
+    <string name="update_title_uptodate">Máte aktuální verzi</string>
+    <string name="update_title_available">K dispozici je aktualizace</string>
+    <string name="update_title_downloading">Stahování aktualizace</string>
+    <string name="update_title_launching">Otevírání instalátoru</string>
+    <string name="update_title_error">Aktualizaci se nepodařilo načíst</string>
+    <string name="update_body_idle">Klepnutím na Zkontrolovat zjistíte, zda je nová verze.</string>
+    <string name="update_body_uptodate">Používáte nejnovější verzi (v%1$s).</string>
+    <string name="update_body_available">Nyní: v%1$s\nNová: v%2$s</string>
+    <string name="update_body_stale">Zobrazena uložená informace — server byl nedostupný.</string>
+    <string name="update_body_launching">Otevírání instalátoru…</string>
+    <string name="update_action_install">Nainstalovat</string>
+    <string name="update_action_cancel">Zrušit</string>
+    <string name="update_action_retry">Zkusit znovu</string>
+    <string name="update_action_close">Zavřít</string>
+    <string name="update_action_skip">Přeskočit tuto verzi</string>
+    <string name="update_action_skipped">Přeskočeno</string>
 </resources>

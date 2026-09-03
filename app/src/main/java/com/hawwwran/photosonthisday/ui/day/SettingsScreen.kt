@@ -22,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -32,8 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil3.SingletonImageLoader
 import com.hawwwran.photosonthisday.R
+import com.hawwwran.photosonthisday.update.UpdateUiState
+import com.hawwwran.photosonthisday.update.UpdateViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -115,9 +119,36 @@ fun SettingsScreen(
                 Text(stringResource(R.string.settings_clear_cache))
             }
             HorizontalDivider()
+            // Version and updates. The update view model is activity-scoped, so this is the same
+            // instance that drives the banner and modal in AppRoot.
+            val updateVm: UpdateViewModel = viewModel()
+            val updateState by updateVm.state.collectAsState()
+            val versionName = remember {
+                runCatching {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                }.getOrNull() ?: "?"
+            }
+            Setting(stringResource(R.string.settings_version, versionName), updateSubtitle(updateState))
+            OutlinedButton(onClick = updateVm::onForceCheck) {
+                Text(stringResource(R.string.update_check_now))
+            }
+            HorizontalDivider()
             Button(onClick = onSignOut) { Text(stringResource(R.string.sign_out)) }
         }
     }
+}
+
+@Composable
+private fun updateSubtitle(state: UpdateUiState): String = when (state) {
+    is UpdateUiState.Available ->
+        if (state.dismissed) stringResource(R.string.update_sub_available_skipped, state.info.latestVersion)
+        else stringResource(R.string.update_sub_available, state.info.latestVersion)
+    is UpdateUiState.NoUpdate -> stringResource(R.string.update_sub_uptodate)
+    is UpdateUiState.Checking -> stringResource(R.string.update_title_checking)
+    is UpdateUiState.Downloading -> stringResource(R.string.update_title_downloading)
+    is UpdateUiState.Launching -> stringResource(R.string.update_body_launching)
+    is UpdateUiState.Error -> stringResource(R.string.update_sub_error)
+    UpdateUiState.Idle -> stringResource(R.string.update_sub_idle)
 }
 
 @Composable

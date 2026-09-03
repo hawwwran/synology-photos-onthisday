@@ -62,6 +62,9 @@ sealed interface DayViewState {
     /** The whole library is empty; there is no day to browse. */
     data object NoPhotos : DayViewState
 
+    /** No cached index yet and the first refresh failed (e.g. offline). [message] says why. */
+    data class Problem(val message: String) : DayViewState
+
     data class Shown(
         val monthDay: MonthDay,
         val isToday: Boolean,
@@ -104,9 +107,13 @@ class DayViewModel(
     private val selectedDay = MutableStateFlow<MonthDay?>(null)
     private val reloadTick = MutableStateFlow(0)
 
+    /** Set when a refresh fails; only surfaced when there is no cached index to fall back on. */
+    private val loadError = MutableStateFlow<String?>(null)
+
     val dayView: StateFlow<DayViewState> =
-        combine(repository.observeDays(), selectedDay, today) { data, selected, td -> computeView(data, selected, td) }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayViewState.Loading)
+        combine(repository.observeDays(), selectedDay, today, loadError) { data, selected, td, err ->
+            computeView(data, selected, td, err)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DayViewState.Loading)
 
     private val _sections = MutableStateFlow<List<YearSection>>(emptyList())
 
@@ -164,7 +171,10 @@ class DayViewModel(
     val selected: StateFlow<Set<String>> = _selected
 
     init {
-        viewModelScope.launch { repository.refreshIfStale(session) }
+        viewModelScope.launch {
+            val result = repository.refreshIfStale(session)
+            loadError.value = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message
+        }
         viewModelScope.launch { likes.sync(session) } // pull the NAS likes so they show, push any pending
         // Reload the year sections whenever the shown day changes or a refresh is asked for.
         viewModelScope.launch {
@@ -191,15 +201,23 @@ class DayViewModel(
         if (_refreshing.value) return
         _refreshing.value = true
         viewModelScope.launch {
-            repository.refresh(session)
+            val result = repository.refresh(session)
+            loadError.value = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message
             reloadTick.update { it + 1 }
             _refreshing.value = false
         }
     }
 
-    private fun computeView(data: DayIndexData, selected: MonthDay?, today: MonthDay): DayViewState {
+    /** Retry after the first refresh failed with no cache to show (the Problem screen). */
+    fun retry() = refresh()
+
+    private fun computeView(data: DayIndexData, selected: MonthDay?, today: MonthDay, error: String?): DayViewState {
         if (data.days.isNotEmpty()) return shownFor(data.days, selected, today)
-        return if (data.refreshedAt != null) DayViewState.NoPhotos else DayViewState.Loading
+        return when {
+            data.refreshedAt != null -> DayViewState.NoPhotos
+            error != null -> DayViewState.Problem(error) // never refreshed and the attempt failed
+            else -> DayViewState.Loading
+        }
     }
 
     /** Toggle the like locally at once, then reconcile with the NAS. */

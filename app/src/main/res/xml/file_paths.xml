@@ -2,4 +2,6 @@
 <paths>
     <!-- The temp copies the share flow writes; nothing else is exposed. -->
     <cache-path name="shared" path="shared/" />
+    <!-- Downloaded update APKs handed to the system installer via FileProvider. -->
+    <cache-path name="updates" path="updates/" />
 </paths>

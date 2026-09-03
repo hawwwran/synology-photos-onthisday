@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -166,6 +167,18 @@ fun DayScreen(
                         Modifier.align(Alignment.Center).padding(24.dp),
                         textAlign = TextAlign.Center,
                     )
+
+                is DayViewState.Problem ->
+                    Column(
+                        Modifier.align(Alignment.Center).padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(current.message, textAlign = TextAlign.Center)
+                        Button(onClick = viewModel::retry, enabled = !refreshing) {
+                            Text(stringResource(R.string.day_retry))
+                        }
+                    }
 
                 is DayViewState.Shown ->
                     if (current.hasPhotos) {
