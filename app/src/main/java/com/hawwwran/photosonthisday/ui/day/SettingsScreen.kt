@@ -51,8 +51,8 @@ fun SettingsScreen(
     refreshHours: Long,
     likesFolder: String,
     onLikesFolderChange: (String) -> Unit,
-    mergeLiked: Boolean,
-    onMergeLikedChange: (Boolean) -> Unit,
+    likedByYear: Boolean,
+    onLikedByYearChange: (Boolean) -> Unit,
     onClearCache: suspend () -> Unit,
     onBack: () -> Unit,
     onSignOut: () -> Unit,
@@ -101,8 +101,8 @@ fun SettingsScreen(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.settings_merge_liked), modifier = Modifier.weight(1f))
-                Switch(checked = mergeLiked, onCheckedChange = onMergeLikedChange)
+                Text(stringResource(R.string.settings_liked_by_year), modifier = Modifier.weight(1f))
+                Switch(checked = likedByYear, onCheckedChange = onLikedByYearChange)
             }
             HorizontalDivider()
             Setting(

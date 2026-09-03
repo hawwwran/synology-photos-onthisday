@@ -78,11 +78,15 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
         dataStore.edit { it[LIKES_FOLDER] = path.trim().trimEnd('/').ifEmpty { DEFAULT_LIKES_FOLDER } }
     }
 
-    /** True: liked photos in one group at the top. False (default): liked kept first within each year. */
-    fun mergeLiked(): Flow<Boolean> = dataStore.data.map { it[MERGE_LIKED] ?: false }
+    /**
+     * How the always-on-top liked group is arranged. False (default): one blob of all liked.
+     * True: the liked split into per-year groups. Either way the liked stay at the top and are
+     * never mixed into the year sections below.
+     */
+    fun likedByYear(): Flow<Boolean> = dataStore.data.map { it[LIKED_BY_YEAR] ?: false }
 
-    suspend fun setMergeLiked(value: Boolean) {
-        dataStore.edit { it[MERGE_LIKED] = value }
+    suspend fun setLikedByYear(value: Boolean) {
+        dataStore.edit { it[LIKED_BY_YEAR] = value }
     }
 
     suspend fun save(session: Session, deviceId: String?) {
@@ -123,6 +127,6 @@ class SessionStore(private val dataStore: DataStore<Preferences>) {
         private val DEVICE_ID = stringPreferencesKey("device_id")
         private val EXPIRED = booleanPreferencesKey("expired")
         private val LIKES_FOLDER = stringPreferencesKey("likes_folder")
-        private val MERGE_LIKED = booleanPreferencesKey("merge_liked")
+        private val LIKED_BY_YEAR = booleanPreferencesKey("liked_by_year")
     }
 }
