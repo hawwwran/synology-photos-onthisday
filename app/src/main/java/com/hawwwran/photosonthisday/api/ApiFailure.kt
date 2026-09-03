@@ -22,8 +22,12 @@ sealed class ApiFailure(message: String, cause: Throwable? = null) : Exception(m
     class Transport(override val call: ApiCall, cause: IOException) :
         ApiFailure("${call.name}: ${cause.javaClass.simpleName}", cause)
 
-    /** An answer that is not a Synology envelope: an HTTP error page, a proxy notice, garbage. */
-    class Malformed(override val call: ApiCall, detail: String) :
+    /**
+     * An answer that is not a Synology envelope: an HTTP error page, a proxy notice, garbage.
+     * [detail] is app-authored, from [MalformedDetail]'s vocabulary, never response content, so
+     * the screen may show it and the log may carry it (plan.md §2, `HardeningTest`).
+     */
+    class Malformed(override val call: ApiCall, val detail: String) :
         ApiFailure("${call.name}: $detail")
 
     companion object {

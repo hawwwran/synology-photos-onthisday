@@ -49,6 +49,21 @@ class DsmErrorTextTest {
     }
 
     @Test
+    fun `a malformed answer says which one it was, and blames the address only on sign-in`() {
+        val wrongHost = DsmErrorText.forFailure(ApiFailure.Malformed(Allowlist.API_INFO, "no success flag"))
+        val proxyPage = DsmErrorText.forFailure(ApiFailure.Malformed(Allowlist.API_INFO, MalformedDetail.http(502)))
+        val likesHttp = DsmErrorText.forFailure(ApiFailure.Malformed(Allowlist.FS_UPLOAD, MalformedDetail.http(404)))
+        val unreadable = DsmErrorText.forFailure(ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, MalformedDetail.UNREADABLE_LIKES_FILE))
+
+        assertEquals("Adresa odpověděla, ale ne jako Synology NAS.", wrongHost)
+        assertTrue(proxyPage, "502" in proxyPage)
+        assertTrue(likesHttp, "404" in likesHttp && likesHttp.contains("složka", ignoreCase = true))
+        assertTrue(likesHttp, "Synology NAS" !in likesHttp) // the address is fine; the folder is not
+        assertTrue(unreadable, unreadable.contains("likes.json"))
+        assertTrue(unreadable, unreadable.contains("nebyl přepsán", ignoreCase = true))
+    }
+
+    @Test
     fun `failures without a code say what kind they were`() {
         val call = Allowlist.API_INFO
         assertEquals(
@@ -57,6 +72,6 @@ class DsmErrorTextTest {
         )
         assertTrue(DsmErrorText.forFailure(ApiFailure.SessionExpired(call, 119)).contains("119"))
         assertTrue(DsmErrorText.forFailure(ApiFailure.DsmError(call, 120)).contains("120"))
-        assertTrue(DsmErrorText.forFailure(ApiFailure.Malformed(call, "HTTP 502")).isNotBlank())
+        assertTrue(DsmErrorText.forFailure(ApiFailure.Malformed(call, MalformedDetail.http(502))).isNotBlank())
     }
 }

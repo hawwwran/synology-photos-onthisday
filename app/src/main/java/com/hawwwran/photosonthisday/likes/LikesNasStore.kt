@@ -4,6 +4,7 @@ import com.hawwwran.photosonthisday.api.Allowlist
 import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.ApiLog
 import com.hawwwran.photosonthisday.api.AppJson
+import com.hawwwran.photosonthisday.api.MalformedDetail
 import com.hawwwran.photosonthisday.api.SessionCredentials
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
@@ -41,7 +42,7 @@ class LikesNasStore(
 
     /** Present but not our shape: stop, so the sync never pushes over it. Logged as the call and a detail, no content. */
     private fun unreadable(): ApiFailure.Malformed =
-        ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, "likes file is not readable").also(ApiLog::failure)
+        ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, MalformedDetail.UNREADABLE_LIKES_FILE).also(ApiLog::failure)
 
     override suspend fun push(baseUrl: HttpUrl, folder: String, states: Collection<LikeState>, credentials: SessionCredentials) {
         val bytes = json.encodeToString(LikesFile.serializer(), states.toFile()).encodeToByteArray()

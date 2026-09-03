@@ -27,7 +27,28 @@ object DsmErrorText {
         }
         is ApiFailure.SessionExpired -> "NAS ukončil relaci. Přihlaste se znovu. (chyba DSM ${failure.code})"
         is ApiFailure.Transport -> "NAS není dostupný. Zkontrolujte připojení k internetu."
-        is ApiFailure.Malformed -> "Adresa odpověděla, ale ne jako Synology NAS."
+        is ApiFailure.Malformed -> malformedReason(failure)
+    }
+
+    /**
+     * An answer that was not a Synology envelope. On the sign-in path that means the address is
+     * not a NAS, which is the text the screen has always shown. Elsewhere it is a status or a shape
+     * the user can act on, so it is named: a File Station refusal of the likes file usually means
+     * the folder or the permission, and the app must not blame the address for it.
+     */
+    private fun malformedReason(failure: ApiFailure.Malformed): String {
+        val status = MalformedDetail.httpStatus(failure.detail)
+        val fileStation = failure.call.api.startsWith(FILE_STATION_PREFIX)
+        return when {
+            failure.detail == MalformedDetail.UNREADABLE_LIKES_FILE ->
+                "Soubor likes.json ve složce pro lajky se nepodařilo přečíst. Nebyl přepsán, aby se lajky neztratily; opravte ho, nebo smažte a lajky se uloží znovu."
+            fileStation && status != null ->
+                "NAS odmítl soubor s lajky (HTTP $status). Zkontrolujte, že složka pro lajky existuje a že do ní účet smí zapisovat."
+            fileStation ->
+                "NAS odpověděl na soubor s lajky neočekávaně (${failure.detail})."
+            status != null -> "Adresa odpověděla chybou HTTP $status, ne jako Synology NAS."
+            else -> "Adresa odpověděla, ale ne jako Synology NAS."
+        }
     }
 
     private fun loginReason(code: Int): String = when (code) {

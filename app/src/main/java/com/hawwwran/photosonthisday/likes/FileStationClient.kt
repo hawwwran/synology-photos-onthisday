@@ -6,6 +6,7 @@ import com.hawwwran.photosonthisday.api.ApiFailure
 import com.hawwwran.photosonthisday.api.ApiLog
 import com.hawwwran.photosonthisday.api.AppJson
 import com.hawwwran.photosonthisday.api.Envelope
+import com.hawwwran.photosonthisday.api.MalformedDetail
 import com.hawwwran.photosonthisday.api.SessionCredentials
 import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.classifyEnvelope
@@ -60,7 +61,7 @@ class FileStationClient(
                         ApiLog.failure(ApiFailure.DsmError(call, FILE_NOT_FOUND)) // normal on the first run
                         return@use null
                     }
-                    if (!response.isSuccessful) throw malformed(call, "HTTP ${response.code}")
+                    if (!response.isSuccessful) throw malformed(call, MalformedDetail.http(response.code))
                     val bytes = response.body.bytes()
                     when (val envelope = json.classifyEnvelope(bytes.decodeToString())) {
                         is Envelope.NotAnEnvelope -> {
@@ -71,7 +72,7 @@ class FileStationClient(
                             val failure = ApiFailure.fromDsmCode(call, envelope.code).also(ApiLog::failure)
                             if (envelope.code == FILE_NOT_FOUND) null else throw failure
                         }
-                        is Envelope.Success -> throw malformed(call, "download answered an envelope, not a file")
+                        is Envelope.Success -> throw malformed(call, MalformedDetail.ENVELOPE_INSTEAD_OF_FILE)
                     }
                 }
             } catch (e: IOException) {
@@ -101,7 +102,7 @@ class FileStationClient(
                 .build()
             try {
                 http.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) throw malformed(call, "HTTP ${response.code}")
+                    if (!response.isSuccessful) throw malformed(call, MalformedDetail.http(response.code))
                     when (val envelope = json.classifyEnvelope(response.body.string())) {
                         is Envelope.Success -> ApiLog.ok(call)
                         is Envelope.Error -> throw ApiFailure.fromDsmCode(call, envelope.code).also(ApiLog::failure)

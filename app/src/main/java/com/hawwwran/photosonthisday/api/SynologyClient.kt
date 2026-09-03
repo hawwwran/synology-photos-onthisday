@@ -59,7 +59,7 @@ class SynologyClient(
             try {
                 http.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        throw malformed(call, "HTTP ${response.code}")
+                        throw malformed(call, MalformedDetail.http(response.code))
                     }
                     response.body.string()
                 }
