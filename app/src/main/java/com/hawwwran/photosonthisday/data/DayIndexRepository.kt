@@ -75,10 +75,13 @@ class DayIndexRepository(
             }
         }
 
-    /** True when the index has never been fetched or is older than the threshold. */
+    /**
+     * True when the index has never been fetched, is older than the threshold, or a day fetch
+     * found it out of date ([DayIndexStore.needsRefresh]).
+     */
     suspend fun isStale(): Boolean {
         val refreshedAt = currentRefreshedAt() ?: return true
-        return now() - refreshedAt >= staleAfterMillis
+        return store.needsRefresh() || now() - refreshedAt >= staleAfterMillis
     }
 
     /** Refresh only when stale; the day screen calls this on open (plan 004). */
@@ -89,43 +92,69 @@ class DayIndexRepository(
     fun observeDay(year: Int, monthDay: MonthDay): Flow<List<PhotoItem>> = store.items(year, monthDay)
 
     /**
-     * Fetch one year's day from both namespaces and cache it. Pages within the day's time range
-     * so a day larger than one page is read in slices. A fetched count that disagrees with the
-     * histogram is logged and marks the index stale, so the next open refreshes it (decision 005).
+     * Fetch one year's day from both namespaces at once and cache it in one write. Each namespace
+     * pages within the day's time range on the server's page size, so a day larger than one page
+     * is read in slices and an item without a thumbnail does not end the paging early.
+     *
+     * [expectedCount] is the histogram's count for the day, both namespaces, from the bucket the
+     * caller already holds. When the cache already holds that many rows and the index is inside its
+     * staleness window the network is skipped, unless [force] (pull-to-refresh). A fetched total
+     * that disagrees with it is logged and flags the index for one refresh on the next open
+     * (decision 005, amended 2026-09-03); the flag is idempotent, so a persistent disagreement costs
+     * one refresh per open, never a loop within one.
      */
-    suspend fun fetchDay(session: Session, year: Int, monthDay: MonthDay): RefreshResult {
-        val range = dayRangeUtc(year, monthDay)
-        try {
-            var total = 0
-            for (space in Space.entries) {
-                val items = ArrayList<PhotoItem>()
-                var offset = 0
-                while (offset < MAX_ITEMS_PER_DAY) {
-                    val page = itemApi.list(session.baseUrl, space, range, offset, PAGE_SIZE, session.credentials)
-                    items += page
-                    if (page.size < PAGE_SIZE) break
-                    offset += PAGE_SIZE
-                }
-                store.replaceDayItems(space, year, monthDay, items)
-                total += items.size
-            }
-            val expected = expectedCount(year, monthDay)
-            if (expected != null && expected != total) {
-                IndexLog.dayCountMismatch(year, monthDay, total, expected)
-                store.replaceBuckets(emptyMap(), refreshedAt = 0L) // schedule a histogram refresh on the next open
-            }
-            return RefreshResult.Success
-        } catch (e: ApiFailure.SessionExpired) {
-            onSessionExpired(session.credentials.sid)
-            return RefreshResult.SessionExpired
-        } catch (e: ApiFailure) {
-            return RefreshResult.Failed(DsmErrorText.forFailure(e))
+    suspend fun fetchDay(
+        session: Session,
+        year: Int,
+        monthDay: MonthDay,
+        expectedCount: Int? = null,
+        force: Boolean = false,
+    ): RefreshResult = coroutineScope {
+        if (!force && expectedCount != null && !isStale() && store.cachedCount(year, monthDay) == expectedCount) {
+            return@coroutineScope RefreshResult.Success
         }
+        val range = dayRangeUtc(year, monthDay)
+        val outcomes = Space.entries.map { space -> async { fetchDayItems(session, space, range) } }.awaitAll()
+        val failures = outcomes.filterIsInstance<DayOutcome.Failed>().map { it.failure }
+        if (failures.any { it is ApiFailure.SessionExpired }) {
+            onSessionExpired(session.credentials.sid)
+            return@coroutineScope RefreshResult.SessionExpired
+        }
+        val fetched = outcomes.filterIsInstance<DayOutcome.Fetched>()
+        store.replaceDayItems(year, monthDay, fetched.associate { it.space to it.items })
+        if (failures.isEmpty() && expectedCount != null) {
+            val serverTotal = fetched.sumOf { it.serverCount }
+            if (serverTotal != expectedCount) {
+                IndexLog.dayCountMismatch(serverTotal, serverTotal - fetched.sumOf { it.items.size }, expectedCount)
+                store.markNeedsRefresh()
+            }
+        }
+        failures.firstOrNull()?.let { return@coroutineScope RefreshResult.Failed(DsmErrorText.forFailure(it)) }
+        RefreshResult.Success
     }
 
-    private suspend fun expectedCount(year: Int, monthDay: MonthDay): Int? {
-        val forDay = store.buckets().first().filter { it.bucket.year == year && it.bucket.monthDay == monthDay }
-        return if (forDay.isEmpty()) null else forDay.sumOf { it.bucket.itemCount }
+    private sealed interface DayOutcome {
+        /** [items] is de-duplicated by id; [serverCount] is how many the server sent, thumbnail or not. */
+        data class Fetched(val space: Space, val items: List<PhotoItem>, val serverCount: Int) : DayOutcome
+        data class Failed(val failure: ApiFailure) : DayOutcome
+    }
+
+    private suspend fun fetchDayItems(session: Session, space: Space, range: LongRange): DayOutcome = try {
+        // Keyed by id: `sort_by=takentime` has one-second ties and no secondary key, so an item can
+        // sit on the edge of two consecutive pages. The primary key would refuse it twice.
+        val items = LinkedHashMap<Int, PhotoItem>()
+        var serverCount = 0
+        var offset = 0
+        while (offset < MAX_ITEMS_PER_DAY) {
+            val page = itemApi.list(session.baseUrl, space, range, offset, PAGE_SIZE, session.credentials)
+            page.items.forEach { items.putIfAbsent(it.id, it) }
+            serverCount += page.serverCount
+            if (page.serverCount < PAGE_SIZE) break
+            offset += PAGE_SIZE
+        }
+        DayOutcome.Fetched(space, items.values.toList(), serverCount)
+    } catch (e: ApiFailure) {
+        DayOutcome.Failed(e)
     }
 
     /**

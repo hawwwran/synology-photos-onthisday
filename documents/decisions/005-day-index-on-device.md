@@ -74,6 +74,17 @@ answered locally, in the device's zone.
   retried. Whether `end_time` is inclusive was not verified. The owner accepted the consequence:
   a photo taken at exactly 23:59:59 may be missed. Chosen by the owner; this is the
   reconsideration the alternatives section asked for.
+- 2026-09-03, plan 008: **paging counts server rows, and a mismatch schedules one refresh.**
+  The loop that pages a day stops on the number of items the server sent, not on the number left
+  after items without a thumbnail are dropped; one such item on a full page used to end the day
+  early. The comparison with `item_count` likewise uses the server's total, since the histogram
+  counts every item. A disagreement sets a `needsRefresh` flag in `index_meta`, idempotently, which
+  the next open honours once and the next successful refresh clears; the earlier mechanism reset
+  the refresh stamp to zero on every open of a disagreeing day, which defeated the twelve-hour
+  throttle for as long as any shown day had a thumbnail-less item. A day whose cached row count
+  equals its `item_count` while the index is inside its staleness window is not fetched again;
+  pull-to-refresh forces it. `end_time` inclusivity, left open above, was verified inclusive on
+  the second run of 2026-09-02 (research U1 update).
 
 ## Related
 

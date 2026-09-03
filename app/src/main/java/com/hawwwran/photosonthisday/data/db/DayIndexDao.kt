@@ -15,17 +15,31 @@ interface DayIndexDao {
     @Query("SELECT refreshedAt FROM index_meta WHERE id = 0")
     fun refreshedAt(): Flow<Long?>
 
+    @Query("SELECT needsRefresh FROM index_meta WHERE id = 0")
+    suspend fun needsRefresh(): Boolean?
+
+    /** Set the flag without touching the stamp; a no-op when the index was never refreshed. */
+    @Query("UPDATE index_meta SET needsRefresh = 1 WHERE id = 0")
+    suspend fun markNeedsRefresh()
+
     @Query("SELECT * FROM item_row WHERE year = :year AND month = :month AND day = :day ORDER BY takenTime DESC, id DESC")
     fun itemsForDay(year: Int, month: Int, day: Int): Flow<List<ItemRowEntity>>
 
+    @Query("SELECT COUNT(*) FROM item_row WHERE year = :year AND month = :month AND day = :day")
+    suspend fun countForDay(year: Int, month: Int, day: Int): Int
+
+    /**
+     * The named namespaces' rows of one day are replaced as a unit. Upsert, not insert: a photo
+     * cached under another day (its date corrected in Photos) is moved, not a constraint failure.
+     */
     @Transaction
-    suspend fun replaceDayItems(namespace: String, year: Int, month: Int, day: Int, rows: List<ItemRowEntity>) {
-        deleteDayItems(namespace, year, month, day)
-        insertItems(rows)
+    suspend fun replaceDayItems(namespaces: List<String>, year: Int, month: Int, day: Int, rows: List<ItemRowEntity>) {
+        namespaces.forEach { deleteDayItems(it, year, month, day) }
+        upsertItems(rows)
     }
 
-    @Insert
-    suspend fun insertItems(rows: List<ItemRowEntity>)
+    @Upsert
+    suspend fun upsertItems(rows: List<ItemRowEntity>)
 
     @Query("DELETE FROM item_row WHERE namespace = :namespace AND year = :year AND month = :month AND day = :day")
     suspend fun deleteDayItems(namespace: String, year: Int, month: Int, day: Int)

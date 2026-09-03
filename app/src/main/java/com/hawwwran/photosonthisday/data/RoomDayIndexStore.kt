@@ -23,20 +23,27 @@ class RoomDayIndexStore(private val dao: DayIndexDao) : DayIndexStore {
         dao.replaceBuckets(
             namespaces = byNamespace.keys.map { it.name },
             rows = byNamespace.flatMap { (space, days) -> days.map { toEntity(space, it) } },
-            meta = refreshedAt?.let { IndexMetaEntity(refreshedAt = it) },
+            meta = refreshedAt?.let { IndexMetaEntity(refreshedAt = it, needsRefresh = false) },
         )
     }
+
+    override suspend fun needsRefresh(): Boolean = dao.needsRefresh() ?: false
+
+    override suspend fun markNeedsRefresh() = dao.markNeedsRefresh()
 
     override fun items(year: Int, monthDay: MonthDay): Flow<List<PhotoItem>> =
         dao.itemsForDay(year, monthDay.month, monthDay.day).map { rows -> rows.map(::toPhoto) }
 
-    override suspend fun replaceDayItems(space: Space, year: Int, monthDay: MonthDay, items: List<PhotoItem>) {
+    override suspend fun cachedCount(year: Int, monthDay: MonthDay): Int =
+        dao.countForDay(year, monthDay.month, monthDay.day)
+
+    override suspend fun replaceDayItems(year: Int, monthDay: MonthDay, byNamespace: Map<Space, List<PhotoItem>>) {
         dao.replaceDayItems(
-            namespace = space.name,
+            namespaces = byNamespace.keys.map { it.name },
             year = year,
             month = monthDay.month,
             day = monthDay.day,
-            rows = items.map { toItemRow(it, year, monthDay) },
+            rows = byNamespace.values.flatten().map { toItemRow(it, year, monthDay) },
         )
     }
 

@@ -22,9 +22,9 @@ class ItemApi(
     }
 
     /**
-     * Items whose taken time falls in [range], newest first, paged by [offset]/[limit] so a day
-     * larger than one page can be read in slices. The thumbnail and resolution are requested so
-     * the grid needs no follow-up call.
+     * One page of the items whose taken time falls in [range], newest first, [offset]/[limit]
+     * into the range so a day larger than one page can be read in slices. The thumbnail and
+     * resolution are requested so the grid needs no follow-up call.
      */
     suspend fun list(
         baseUrl: HttpUrl,
@@ -33,7 +33,7 @@ class ItemApi(
         offset: Int,
         limit: Int,
         credentials: SessionCredentials,
-    ): List<PhotoItem> {
+    ): ItemPage {
         val call = Allowlist.itemList(space)
         val params = mapOf(
             "offset" to offset.toString(),
@@ -45,7 +45,8 @@ class ItemApi(
             "additional" to """["thumbnail","resolution"]""",
         )
         val data = client.call(baseUrl, call, params, credentials)
-        return decode(call, data).list.mapNotNull { it.toPhotoItem(space) }
+        val dtos = decode(call, data).list
+        return ItemPage(items = dtos.mapNotNull { it.toPhotoItem(space) }, serverCount = dtos.size)
     }
 
     private fun decode(call: ApiCall, data: JsonElement): ItemListData = try {
@@ -55,6 +56,16 @@ class ItemApi(
     } catch (e: IllegalArgumentException) {
         throw ApiFailure.Malformed(call, "item response has an unexpected shape")
     }
+}
+
+/**
+ * One page as the server sent it. [serverCount] is the number of items in the response, before
+ * the ones without a thumbnail were dropped from [items]: paging stops on the server's page size,
+ * and the histogram counts every item, so both comparisons need the server's number, not the
+ * filtered one.
+ */
+data class ItemPage(val items: List<PhotoItem>, val serverCount: Int) {
+    val dropped: Int get() = serverCount - items.size
 }
 
 /** Null when an item carries no thumbnail: it cannot be shown in the grid, so it is dropped. */

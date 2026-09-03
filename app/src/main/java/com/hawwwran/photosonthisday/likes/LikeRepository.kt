@@ -48,7 +48,6 @@ class LikeRepository(
                 unitId = unitId,
                 liked = liked,
                 updatedAt = now(),
-                pendingSync = true,
             ),
         )
     }
@@ -79,6 +78,6 @@ class LikeRepository(
 
     private fun LikeState.toEntity(): LikeEntity {
         val (ns, id) = key.split(":", limit = 2)
-        return LikeEntity(namespace = ns, unitId = id.toInt(), liked = liked, updatedAt = updatedAt, pendingSync = false)
+        return LikeEntity(namespace = ns, unitId = id.toInt(), liked = liked, updatedAt = updatedAt)
     }
 }

@@ -23,6 +23,7 @@ import com.hawwwran.photosonthisday.likes.LikeRepository
 import com.hawwwran.photosonthisday.likes.LikesNasStore
 import kotlinx.coroutines.flow.first
 import com.hawwwran.photosonthisday.data.db.AppDatabase
+import com.hawwwran.photosonthisday.data.db.MIGRATIONS
 import com.hawwwran.photosonthisday.session.AccountDataWiper
 import com.hawwwran.photosonthisday.session.SessionManager
 import com.hawwwran.photosonthisday.session.SessionStore
@@ -83,7 +84,7 @@ class AppGraph(context: Context) {
         context.applicationContext,
         AppDatabase::class.java,
         AppDatabase.NAME,
-    ).fallbackToDestructiveMigration(dropAllTables = true).build()  // pre-release; the index and likes rebuild from the NAS
+    ).addMigrations(*MIGRATIONS).build()
 
     /** Filled as caches appear; read at wipe time, so registration order is free. */
     val accountDataWipers = mutableListOf<AccountDataWiper>()

@@ -176,12 +176,18 @@ class DayViewModel(
             loadError.value = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message
         }
         viewModelScope.launch { likes.sync(session) } // pull the NAS likes so they show, push any pending
-        // Reload the year sections whenever the shown day changes or a refresh is asked for.
+        // Reload the year sections whenever the shown day changes or a refresh is asked for. A
+        // changed tick means the user asked, so the cached-count skip in fetchDay is bypassed.
         viewModelScope.launch {
+            var lastTick = 0
             combine(dayView, reloadTick) { view, tick -> view to tick }
                 .mapNotNull { (view, tick) -> (view as? DayViewState.Shown)?.let { Triple(it.monthDay, it.years, tick) } }
                 .distinctUntilChanged()
-                .collectLatest { (monthDay, years, _) -> loadSections(monthDay, years) }
+                .collectLatest { (monthDay, years, tick) ->
+                    val forced = tick != lastTick
+                    lastTick = tick
+                    loadSections(monthDay, years, forced)
+                }
         }
     }
 
@@ -214,8 +220,8 @@ class DayViewModel(
     private fun computeView(data: DayIndexData, selected: MonthDay?, today: MonthDay, error: String?): DayViewState {
         if (data.days.isNotEmpty()) return shownFor(data.days, selected, today)
         return when {
+            error != null -> DayViewState.Problem(error) // nothing to show and the last refresh failed
             data.refreshedAt != null -> DayViewState.NoPhotos
-            error != null -> DayViewState.Problem(error) // never refreshed and the attempt failed
             else -> DayViewState.Loading
         }
     }
@@ -299,7 +305,7 @@ class DayViewModel(
         )
     }
 
-    private suspend fun loadSections(monthDay: MonthDay, years: List<DayBucket>) = coroutineScope {
+    private suspend fun loadSections(monthDay: MonthDay, years: List<DayBucket>, force: Boolean) = coroutineScope {
         orderKeys.value = likedKeys.value // freeze the liked-first order for this day visit
         _sections.value = years.map { YearSection(it.year, it.itemCount) }
         years.forEach { yearBucket ->
@@ -310,7 +316,7 @@ class DayViewModel(
                 }
             }
             launch {
-                val result = repository.fetchDay(session, year, monthDay)
+                val result = repository.fetchDay(session, year, monthDay, expectedCount = yearBucket.itemCount, force = force)
                 updateYear(year) {
                     it.copy(loading = false, error = (result as? com.hawwwran.photosonthisday.data.RefreshResult.Failed)?.message)
                 }

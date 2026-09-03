@@ -119,5 +119,6 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver3.junit4)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.room.testing)
     debugImplementation(libs.compose.ui.tooling)
 }

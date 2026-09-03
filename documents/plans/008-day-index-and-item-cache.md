@@ -1,13 +1,14 @@
 # 008 - Day index and item cache correctness
 
-- **Status:** Not started. Written from the whole-project code review of 2026-09-03.
+- **Status:** Code done 2026-09-03; the instrumented tests and the device check wait for the Vivo
+  (no device attached in the executing session).
 - **Source:** code review 2026-09-03: findings 2, 6, 9 and the efficiency findings on `fetchDay`,
   `refresh` and `item_row`.
 - **Depends on:** 005 (the code it fixes). Independent of 007 and 010.
 - **Blocks:** 009 (owns the schema bump to version 5, which 009's column removal rides on), 011.
 - **Decisions:** [005](../decisions/005-day-index-on-device.md) (amend: paging counts server rows;
   a count mismatch is reported, not turned into a forced refresh loop).
-- **Progress:** 0 / 12
+- **Progress:** 9 / 12
 
 ## Goal
 
@@ -94,39 +95,51 @@ rule is plan 011.)
 
 ### 1. Schema version 5, real migrations
 
-- [ ] `MIGRATION_4_5`: index on `item_row(year, month, day)`; `index_meta` gains `needsRefresh`
-      (or an equivalent column); `item_like` drops `pendingSync` (for plan 009; do it here so there
-      is one migration). Export `5.json`.
-- [ ] Remove `fallbackToDestructiveMigration`; register the migration; fix the `AppDatabase` KDoc.
-- [ ] `room-testing` dependency and an instrumented `MigrationTest` from 4 to 5 that seeds a row per
-      table and reads it back. Run on the Vivo.
+- [x] `data/db/Migrations.kt`: `MIGRATION_4_5` creates `index_item_row_year_month_day`, adds
+      `index_meta.needsRefresh INTEGER NOT NULL DEFAULT 0`, and rebuilds `item_like` without
+      `pendingSync` (copy, drop, rename: `DROP COLUMN` needs SQLite 3.35, API 34). `5.json` exported;
+      its `createSql` matches the migration statement for statement.
+- [x] `fallbackToDestructiveMigration` removed; `addMigrations(*MIGRATIONS)`; `AppDatabase` KDoc says
+      version 5 and why migrations, not drops.
+- [ ] `room-testing` added; `androidTest/.../MigrationTest` seeds one row per table under 4.json,
+      runs `runMigrationsAndValidate(5)`, reads every row back including a like with `pendingSync=1`.
+      Compiles (`compileDebugAndroidTestKotlin`).
+      > Blocked: not run, no device attached in the executing session.
 
 ### 2. Item rows
 
-- [ ] `insertItems` becomes `@Upsert`; `replaceDayItems` takes both namespaces' rows and runs in one
-      transaction; pages are de-duplicated by `(namespace, id)` before storing.
-- [ ] `FakeDayIndexStore` enforces the `(namespace, id)` key the way SQLite does (throws on
-      duplicate insert, or upserts if the DAO now upserts) so it mirrors the real store; a
-      `DayIndexRepositoryTest` case moves an item from one day to another and asserts no exception
-      and one row.
-- [ ] `DayIndexDaoTest` (instrumented) covers the moved-item case against real Room.
+- [x] `upsertItems` is `@Upsert`; `DayIndexDao.replaceDayItems(namespaces, ...)` deletes each named
+      namespace's day and upserts all rows in one `@Transaction`; `fetchDayItems` collects a page
+      into a `LinkedHashMap` by id, so an item on the edge of two pages is stored once
+      ("an item on the edge of two pages is cached once").
+- [x] `FakeDayIndexStore` keys rows by `(Space, id)` and replaces under that key, as the DAO's upsert
+      does. "an item that moved to another day is rewritten there, not inserted twice".
+- [ ] `DayIndexDaoTest` gains `an_item_that_moved_days_is_rewritten_under_the_new_day` and a
+      `needsRefresh` case against real Room. Compiles.
+      > Blocked: not run, no device attached in the executing session.
 
 ### 3. Paging and the mismatch rule
 
-- [ ] `ItemApi.list` exposes the server page size; the loop in `fetchDay` uses it. Test with
-      `MockWebServer`: a 200-item page with one thumbnail-less item is followed by a second request.
-- [ ] `expectedCount` takes the caller's bucket; the mismatch is logged without a date and sets
-      `needsRefresh` once; `refresh()` clears it; `isStale()` honours it. Test: a mismatch triggers one
-      refresh on the next open, not one per open.
-- [ ] Amend decision 005 (dated line): paging counts server rows; dropped items are counted; a
-      mismatch schedules one refresh.
+- [x] `ItemApi.list` returns `ItemPage(items, serverCount)`; the loop stops on `serverCount`.
+      "paging stops on the server page size, not on the filtered one": a 200-item page with one
+      thumbnail-less item is followed by an `offset=200` request, and the server total matching the
+      histogram schedules no refresh.
+- [x] `fetchDay(session, year, monthDay, expectedCount, force)` takes the bucket's count from the
+      caller (`DayViewModel.loadSections` passes `yearBucket.itemCount`); the mismatch line logs
+      counts only; `markNeedsRefresh()` is an idempotent `UPDATE`; a stamped `replaceBuckets`
+      clears it; `isStale()` honours it. "a count mismatch schedules one refresh, which the next open
+      runs and clears": two mismatching fetches, one refresh, then none.
+- [x] Decision 005 amended (2026-09-03).
 
 ### 4. Fewer round trips
 
-- [ ] `refresh()` fetches both namespaces concurrently and writes once; `observeDays` emits one
-      state per refresh. Test: the fake store records one `replace` batch.
-- [ ] `fetchDay` skips the network when cached count equals the bucket count inside the staleness
-      window; pull-to-refresh bypasses the skip. Test both branches.
+- [x] Done in plan 007 for the histogram (`refresh()` is `async` per namespace, one `replaceBuckets`
+      with the stamp in the same transaction; the fake records one write). This plan does the same
+      for the day: `fetchDay` fetches both namespaces at once and writes them in one
+      `replaceDayItems` ("... caches them newest first in one write").
+- [x] Skip when `cachedCount == expectedCount` and the index is not stale, unless `force`.
+      `DayViewModel` passes `force = true` when the reload tick changed (the user asked). Tests:
+      the skip, the forced bypass, and "a stale index never skips the day fetch".
 
 ### 5. Verify on device
 
@@ -134,15 +147,22 @@ rule is plan 011.)
       likes and the index survive the 4 to 5 migration, open today, prev/next across a large day
       (the shared space has a 1,220-item day), no crash, no refresh loop in `logcat`
       (`adb logcat -s PhotosIndex PhotosApi`).
+      > Blocked: no device attached in the executing session.
 
 ## Acceptance criteria
 
 - [ ] A photo whose date moved between two cached days opens without a crash (reproduce by opening
       day X, editing one photo's date to day Y in Synology Photos, opening day Y).
+      > Blocked: device check; the JVM and DAO tests cover the mechanism.
 - [ ] A day larger than one page loads completely; the count in the year header matches the grid.
+      > Blocked: device check.
 - [ ] `logcat` shows at most one histogram refresh per app start.
+      > Blocked: device check.
 - [ ] Upgrading from the shipped v1.0.0 keeps the local likes cache and the index.
-- [ ] `./gradlew testDebugUnitTest` green; the instrumented DAO and migration tests pass on the Vivo.
+      > Blocked: device check; `MigrationTest` covers it once run.
+- [ ] `./gradlew testDebugUnitTest` green (81 tests); the instrumented DAO and migration tests
+      compile but have not run.
+      > Blocked: no device attached in the executing session.
 
 ## On completion
 

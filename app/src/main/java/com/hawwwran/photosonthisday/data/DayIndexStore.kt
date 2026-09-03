@@ -23,16 +23,29 @@ interface DayIndexStore {
 
     /**
      * Replace the days of every namespace in [byNamespace] wholesale, and stamp [refreshedAt]
-     * when it is given, all in one transaction, so observers see one new histogram rather than
-     * a PERSONAL-only one on the way. An upload shifts nothing here: a day changes count or appears.
+     * when it is given (which also clears [needsRefresh]), all in one transaction, so observers
+     * see one new histogram rather than a PERSONAL-only one on the way. An upload shifts nothing
+     * here: a day changes count or appears.
      */
     suspend fun replaceBuckets(byNamespace: Map<Space, List<DayBucket>>, refreshedAt: Long?)
+
+    /** Set when a day fetch found the histogram out of date; cleared by the next stamped [replaceBuckets]. */
+    suspend fun needsRefresh(): Boolean
+
+    suspend fun markNeedsRefresh()
 
     /** The cached items of one calendar day, both namespaces, newest first. Empty until fetched. */
     fun items(year: Int, monthDay: MonthDay): Flow<List<PhotoItem>>
 
-    /** Replace one namespace's items for one day, so a reopen reflects a changed day exactly. */
-    suspend fun replaceDayItems(space: Space, year: Int, monthDay: MonthDay, items: List<PhotoItem>)
+    /** How many items of one calendar day are cached, both namespaces. */
+    suspend fun cachedCount(year: Int, monthDay: MonthDay): Int
+
+    /**
+     * Replace the items of one day for every namespace in [byNamespace], in one transaction, so a
+     * reopen reflects a changed day exactly and observers see both namespaces land at once. A row
+     * already cached under another day is moved, never duplicated.
+     */
+    suspend fun replaceDayItems(year: Int, monthDay: MonthDay, byNamespace: Map<Space, List<PhotoItem>>)
 
     /** Decision 006: drop everything so another account cannot be seen through a stale index. */
     suspend fun clear()

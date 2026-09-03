@@ -55,12 +55,18 @@ class DayIndexRepositoryTest {
 
     private fun dsmError(code: Int) = """{"success":false,"error":{"code":$code}}"""
 
-    private fun items(vararg ids: Pair<Int, Long>): String {
-        val list = ids.joinToString(",") { (id, time) ->
-            """{"id":$id,"time":$time,"type":"photo","additional":{"thumbnail":{"cache_key":"${id}_1","unit_id":$id},"resolution":{"width":4000,"height":3000}}}"""
-        }
-        return """{"success":true,"data":{"list":[$list]}}"""
+    private fun item(id: Int, time: Long, thumbnail: Boolean = true): String {
+        val additional = if (thumbnail) ""","additional":{"thumbnail":{"cache_key":"${id}_1","unit_id":$id},"resolution":{"width":4000,"height":3000}}""" else ""
+        return """{"id":$id,"time":$time,"type":"photo"$additional}"""
     }
+
+    private fun items(vararg ids: Pair<Int, Long>): String = itemsJson(ids.map { (id, time) -> item(id, time) })
+
+    private fun itemsJson(list: List<String>) = """{"success":true,"data":{"list":[${list.joinToString(",")}]}}"""
+
+    private val emptyPage = itemsJson(emptyList())
+
+    private val day = MonthDay(9, 2)
 
     private fun routeTimeline(space: Space, body: String) = nas.route("api=${space.apiPrefix}.Browse.Timeline", "method=get", body = body)
     private fun routeCount(space: Space, body: String) = nas.route("api=${space.apiPrefix}.Browse.Item", "method=count", body = body)
@@ -212,16 +218,17 @@ class DayIndexRepositoryTest {
     }
 
     @Test
-    fun `fetchDay fetches both namespaces and caches them newest first`() = runTest {
+    fun `fetchDay fetches both namespaces at once and caches them newest first in one write`() = runTest {
         routeList(Space.PERSONAL, items(101 to 1_700_000_100L, 100 to 1_700_000_000L))
         routeList(Space.SHARED, items(200 to 1_700_000_050L))
 
-        val result = repo().fetchDay(session(), 2024, MonthDay(9, 2))
+        val result = repo().fetchDay(session(), 2024, day)
 
         assertEquals(RefreshResult.Success, result)
-        val cached = store.items(2024, MonthDay(9, 2)).first()
+        val cached = store.items(2024, day).first()
         assertEquals(listOf(101, 200, 100), cached.map { it.id })
         assertEquals(setOf(Space.PERSONAL, Space.SHARED), cached.map { it.space }.toSet())
+        assertEquals("both namespaces land in one write", 1, store.dayWrites)
     }
 
     @Test
@@ -229,9 +236,10 @@ class DayIndexRepositoryTest {
         routeList(Space.PERSONAL, dsmError(120))
         routeList(Space.SHARED, dsmError(120))
 
-        val result = repo().fetchDay(session(), 2024, MonthDay(9, 2))
+        val result = repo().fetchDay(session(), 2024, day)
 
         assertTrue(result is RefreshResult.Failed)
+        assertTrue(store.items(2024, day).first().isEmpty())
     }
 
     @Test
@@ -240,9 +248,123 @@ class DayIndexRepositoryTest {
         routeList(Space.PERSONAL, dsmError(119))
         routeList(Space.SHARED, dsmError(119))
 
-        val result = repo { expiredSid = it }.fetchDay(session(), 2024, MonthDay(9, 2))
+        val result = repo { expiredSid = it }.fetchDay(session(), 2024, day)
 
         assertEquals(RefreshResult.SessionExpired, result)
         assertEquals("S", expiredSid)
+    }
+
+    /** One thumbnail-less item on a full page used to end the paging and truncate the day. */
+    @Test
+    fun `paging stops on the server page size, not on the filtered one`() = runTest {
+        val pageSize = DayIndexRepository.PAGE_SIZE
+        val firstPage = (1..pageSize).map { i -> item(id = i, time = 2_000_000_000L - i, thumbnail = i != 7) }
+        routeList(Space.PERSONAL, itemsJson(firstPage), "offset=0")
+        routeList(Space.PERSONAL, items(5000 to 1_000_000_000L), "offset=$pageSize")
+        routeList(Space.SHARED, emptyPage)
+
+        val result = repo().fetchDay(session(), 2024, day, expectedCount = pageSize + 1)
+
+        assertEquals(RefreshResult.Success, result)
+        val personalRequests = nas.requests.filter { "SYNO.Foto.Browse.Item" in it && "method=list" in it }
+        assertEquals("a full server page is followed by a second request", 2, personalRequests.size)
+        assertEquals(pageSize, store.cachedCount(2024, day)) // 200 with thumbnails: 199 from page one, 1 from page two
+        assertEquals("the server's total matched the histogram, so no refresh is scheduled", 0, store.needsRefreshMarks)
+    }
+
+    @Test
+    fun `an item on the edge of two pages is cached once`() = runTest {
+        val pageSize = DayIndexRepository.PAGE_SIZE
+        val firstPage = (1..pageSize).map { i -> item(id = i, time = 2_000_000_000L) }
+        routeList(Space.PERSONAL, itemsJson(firstPage), "offset=0")
+        routeList(Space.PERSONAL, items(pageSize to 2_000_000_000L, 9000 to 1_999_999_999L), "offset=$pageSize") // id 200 again
+        routeList(Space.SHARED, emptyPage)
+
+        assertEquals(RefreshResult.Success, repo().fetchDay(session(), 2024, day))
+
+        assertEquals(pageSize + 1, store.cachedCount(2024, day))
+    }
+
+    /** A photo whose date was corrected in Photos is cached under one day and fetched under another. */
+    @Test
+    fun `an item that moved to another day is rewritten there, not inserted twice`() = runTest {
+        routeList(Space.PERSONAL, items(42 to 1_700_000_000L))
+        routeList(Space.SHARED, emptyPage)
+        repo().fetchDay(session(), 2024, day)
+        val moved = MonthDay(9, 3)
+        nas.route("api=SYNO.Foto.Browse.Item", "method=list", "start_time=${com.hawwwran.photosonthisday.core.dayRangeUtc(2024, moved).first}", body = items(42 to 1_700_086_400L))
+
+        val result = repo().fetchDay(session(), 2024, moved)
+
+        assertEquals(RefreshResult.Success, result)
+        assertEquals(listOf(42), store.items(2024, moved).first().map { it.id })
+        assertEquals("one row per (namespace, id)", 1, store.cachedCount(2024, moved) + store.cachedCount(2024, day))
+    }
+
+    @Test
+    fun `a count mismatch schedules one refresh, which the next open runs and clears`() = runTest {
+        store.seed(Space.PERSONAL, listOf(DayBucket(2024, day, 3)))
+        store.seedRefreshedAt(clock)
+        routeList(Space.PERSONAL, items(1 to 1_700_000_000L, 2 to 1_700_000_001L)) // histogram says 3
+        routeList(Space.SHARED, emptyPage)
+
+        repo().fetchDay(session(), 2024, day, expectedCount = 3)
+        repo().fetchDay(session(), 2024, day, expectedCount = 3, force = true) // a second look before any refresh
+
+        assertTrue("flagged", repo().isStale())
+        assertEquals("the flag is idempotent", 2, store.needsRefreshMarks)
+
+        routeTimeline(Space.PERSONAL, timeline(Triple(Triple(2024, 9, 2), 2, 0)))
+        routeCount(Space.PERSONAL, count(2))
+        routeTimeline(Space.SHARED, timeline())
+        routeCount(Space.SHARED, count(0))
+        assertEquals(RefreshResult.Success, repo().refreshIfStale(session()))
+        assertEquals(1, store.bucketWrites)
+
+        assertFalse("cleared by the refresh", repo().isStale())
+        assertEquals(RefreshResult.Success, repo().refreshIfStale(session()))
+        assertEquals("no second refresh", 1, store.bucketWrites)
+    }
+
+    @Test
+    fun `fetchDay skips the network when the cache already holds the bucket count and the index is fresh`() = runTest {
+        store.seed(Space.PERSONAL, listOf(DayBucket(2024, day, 2)))
+        store.seedRefreshedAt(clock)
+        routeList(Space.PERSONAL, items(1 to 1_700_000_000L, 2 to 1_700_000_001L))
+        routeList(Space.SHARED, emptyPage)
+        repo().fetchDay(session(), 2024, day, expectedCount = 2)
+        val before = nas.requests.size
+
+        assertEquals(RefreshResult.Success, repo().fetchDay(session(), 2024, day, expectedCount = 2))
+
+        assertEquals("served from the cache", before, nas.requests.size)
+    }
+
+    @Test
+    fun `pull-to-refresh bypasses the cached-count skip`() = runTest {
+        store.seed(Space.PERSONAL, listOf(DayBucket(2024, day, 2)))
+        store.seedRefreshedAt(clock)
+        routeList(Space.PERSONAL, items(1 to 1_700_000_000L, 2 to 1_700_000_001L))
+        routeList(Space.SHARED, emptyPage)
+        repo().fetchDay(session(), 2024, day, expectedCount = 2)
+        val before = nas.requests.size
+
+        repo().fetchDay(session(), 2024, day, expectedCount = 2, force = true)
+
+        assertTrue("fetched again", nas.requests.size > before)
+    }
+
+    @Test
+    fun `a stale index never skips the day fetch`() = runTest {
+        store.seed(Space.PERSONAL, listOf(DayBucket(2024, day, 1)))
+        store.seedRefreshedAt(clock - DayIndexRepository.DEFAULT_STALE_AFTER - 1)
+        routeList(Space.PERSONAL, items(1 to 1_700_000_000L))
+        routeList(Space.SHARED, emptyPage)
+        repo().fetchDay(session(), 2024, day, expectedCount = 1)
+        val before = nas.requests.size
+
+        repo().fetchDay(session(), 2024, day, expectedCount = 1)
+
+        assertTrue(nas.requests.size > before)
     }
 }

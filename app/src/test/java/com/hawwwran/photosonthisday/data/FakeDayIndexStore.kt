@@ -6,17 +6,31 @@ import com.hawwwran.photosonthisday.core.DayBucket
 import com.hawwwran.photosonthisday.core.MonthDay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 
-/** In-memory [DayIndexStore], so the repository is tested as pure JVM logic. */
+/**
+ * In-memory [DayIndexStore], so the repository is tested as pure JVM logic. Item rows are keyed by
+ * `(namespace, id)` exactly as the Room table is, and a write replaces a row under that key the
+ * way the DAO's upsert does, so a photo that moved days behaves here as it does on the device.
+ */
 class FakeDayIndexStore : DayIndexStore {
     private val buckets = MutableStateFlow<List<NamespacedDayBucket>>(emptyList())
     private val refreshedAt = MutableStateFlow<Long?>(null)
-    private val dayItems = MutableStateFlow<List<Pair<Triple<Int, Int, Int>, PhotoItem>>>(emptyList())
+    private var needsRefresh = false
+    private val rows = MutableStateFlow<Map<Pair<Space, Int>, Pair<Triple<Int, Int, Int>, PhotoItem>>>(emptyMap())
     var clears = 0
         private set
 
     /** How many times [replaceBuckets] ran, so a test can assert one write per refresh. */
     var bucketWrites = 0
+        private set
+
+    /** How many times [replaceDayItems] ran. */
+    var dayWrites = 0
+        private set
+
+    /** How many times [markNeedsRefresh] ran. */
+    var needsRefreshMarks = 0
         private set
 
     override fun buckets(): Flow<List<NamespacedDayBucket>> = buckets
@@ -26,7 +40,17 @@ class FakeDayIndexStore : DayIndexStore {
         bucketWrites++
         buckets.value = buckets.value.filterNot { it.space in byNamespace } +
             byNamespace.flatMap { (space, days) -> days.map { NamespacedDayBucket(space, it) } }
-        if (refreshedAt != null) this.refreshedAt.value = refreshedAt
+        if (refreshedAt != null) {
+            this.refreshedAt.value = refreshedAt
+            needsRefresh = false
+        }
+    }
+
+    override suspend fun needsRefresh(): Boolean = needsRefresh
+
+    override suspend fun markNeedsRefresh() {
+        needsRefreshMarks++
+        if (refreshedAt.value != null) needsRefresh = true
     }
 
     /** Test setup: seed one namespace without counting it as a write. */
@@ -40,23 +64,31 @@ class FakeDayIndexStore : DayIndexStore {
     }
 
     override fun items(year: Int, monthDay: MonthDay): Flow<List<PhotoItem>> =
-        kotlinx.coroutines.flow.MutableStateFlow(
-            dayItems.value
-                .filter { it.first == Triple(year, monthDay.month, monthDay.day) }
-                .map { it.second }
-                .sortedByDescending { it.takenTimeSeconds },
-        )
+        rows.map { all -> itemsOf(all, year, monthDay) }
 
-    override suspend fun replaceDayItems(space: Space, year: Int, monthDay: MonthDay, items: List<PhotoItem>) {
-        val key = Triple(year, monthDay.month, monthDay.day)
-        dayItems.value = dayItems.value.filterNot { it.first == key && it.second.space == space } +
-            items.map { key to it }
+    override suspend fun cachedCount(year: Int, monthDay: MonthDay): Int = itemsOf(rows.value, year, monthDay).size
+
+    private fun itemsOf(all: Map<Pair<Space, Int>, Pair<Triple<Int, Int, Int>, PhotoItem>>, year: Int, monthDay: MonthDay) =
+        all.values
+            .filter { it.first == Triple(year, monthDay.month, monthDay.day) }
+            .map { it.second }
+            .sortedWith(compareByDescending<PhotoItem> { it.takenTimeSeconds }.thenByDescending { it.id })
+
+    override suspend fun replaceDayItems(year: Int, monthDay: MonthDay, byNamespace: Map<Space, List<PhotoItem>>) {
+        dayWrites++
+        val day = Triple(year, monthDay.month, monthDay.day)
+        val kept = rows.value.filterNot { (key, value) -> key.first in byNamespace && value.first == day }.toMutableMap()
+        byNamespace.forEach { (space, items) ->
+            items.forEach { item -> kept[space to item.id] = day to item }
+        }
+        rows.value = kept
     }
 
     override suspend fun clear() {
         buckets.value = emptyList()
         refreshedAt.value = null
-        dayItems.value = emptyList()
+        needsRefresh = false
+        rows.value = emptyMap()
         clears++
     }
 }
