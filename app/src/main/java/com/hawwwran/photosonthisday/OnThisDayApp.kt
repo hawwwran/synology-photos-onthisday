@@ -9,6 +9,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import androidx.room.Room
 import com.hawwwran.photosonthisday.api.AuthApi
+import com.hawwwran.photosonthisday.api.FolderApi
 import com.hawwwran.photosonthisday.api.ItemApi
 import com.hawwwran.photosonthisday.api.SynologyClient
 import com.hawwwran.photosonthisday.api.TimelineApi
@@ -81,6 +82,7 @@ class AppGraph(context: Context) {
     val authApi = AuthApi(client)
     val timelineApi = TimelineApi(client)
     val itemApi = ItemApi(client)
+    val folderApi = FolderApi(client)
     val sessionStore = SessionStore(context.sessionDataStore)
 
     private val database = Room.databaseBuilder(

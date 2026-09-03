@@ -14,4 +14,9 @@ data class PhotoItem(
     val isVideo: Boolean,
     val width: Int,
     val height: Int,
+    /** For the info sheet only; empty/0 when the source did not carry it. Never logged. */
+    val filename: String = "",
+    val filesize: Long = 0,
+    /** The Photos folder this item lives in, resolved to a path lazily for the info sheet. */
+    val folderId: Int = 0,
 )

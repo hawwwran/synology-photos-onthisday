@@ -146,6 +146,7 @@ fun DayHost(graph: AppGraph, session: Session, onSignOut: () -> Unit) {
                 likedKeys = likedKeys,
                 onToggleLike = { entry -> viewModel.toggleLike(entry.item) },
                 onBack = { nav = DayNav.Grid },
+                resolvePath = { item -> graph.folderApi.path(session.baseUrl, item.space, item.folderId, session.credentials) },
                 saving = saving,
                 sharing = sharing,
                 onShare = { entry ->

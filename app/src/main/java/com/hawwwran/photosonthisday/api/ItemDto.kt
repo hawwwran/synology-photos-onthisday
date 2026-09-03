@@ -11,6 +11,9 @@ data class ItemDto(
     val id: Int,
     val time: Long,
     val type: String,
+    val folder_id: Int = 0,
+    val filename: String = "",
+    val filesize: Long = 0,
     val additional: ItemAdditional? = null,
 )
 

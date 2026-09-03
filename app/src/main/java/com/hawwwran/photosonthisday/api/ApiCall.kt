@@ -26,6 +26,7 @@ object Allowlist {
     fun timeline(space: Space) = ApiCall("${space.apiPrefix}.Browse.Timeline", "get", 6)
     fun itemList(space: Space) = ApiCall("${space.apiPrefix}.Browse.Item", "list", 7)
     fun itemCount(space: Space) = ApiCall("${space.apiPrefix}.Browse.Item", "count", 7)
+    fun folderGet(space: Space) = ApiCall("${space.apiPrefix}.Browse.Folder", "get", 2)
     fun thumbnail(space: Space) = ApiCall("${space.apiPrefix}.Thumbnail", "get", 2)
     fun download(space: Space) = ApiCall("${space.apiPrefix}.Download", "download", 2)
 
@@ -41,6 +42,7 @@ object Allowlist {
             add(timeline(space))
             add(itemList(space))
             add(itemCount(space))
+            add(folderGet(space))
             add(thumbnail(space))
             add(download(space))
         }

@@ -70,5 +70,8 @@ private fun ItemDto.toPhotoItem(space: Space): PhotoItem? {
         isVideo = type == "video",
         width = additional.resolution?.width ?: 0,
         height = additional.resolution?.height ?: 0,
+        filename = filename,
+        filesize = filesize,
+        folderId = folder_id,
     )
 }

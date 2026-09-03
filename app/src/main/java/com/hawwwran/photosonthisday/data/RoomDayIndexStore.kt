@@ -56,6 +56,9 @@ class RoomDayIndexStore(private val dao: DayIndexDao) : DayIndexStore {
         isVideo = row.isVideo,
         width = row.width,
         height = row.height,
+        filename = row.filename,
+        folderId = row.folderId,
+        filesize = row.filesize,
     )
 
     private fun toItemRow(item: PhotoItem, year: Int, monthDay: MonthDay) = ItemRowEntity(
@@ -67,6 +70,9 @@ class RoomDayIndexStore(private val dao: DayIndexDao) : DayIndexStore {
         isVideo = item.isVideo,
         width = item.width,
         height = item.height,
+        filename = item.filename,
+        folderId = item.folderId,
+        filesize = item.filesize,
         year = year,
         month = monthDay.month,
         day = monthDay.day,
