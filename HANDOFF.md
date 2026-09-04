@@ -25,7 +25,7 @@ per-account access and the app implements no permission logic. That is
 | Launcher icon | Adaptive, one vector petal rotated four times, three warm and one white |
 | Day-selection logic | Written and tested. `core/DayIndex.kt` plus `DayIndexTest.kt` |
 | Product spec | `documents/plans/plan.md`. §11 now carries the answers |
-| Plans | 001-006 done. 007-011 (the code-review follow-up of 2026-09-03) executed; their device checks are the open items |
+| Plans | 001-005 and 009-011 done and their files removed (the index says where each record went). Live: 006, 007, 008 with a parked check each, and 012, the likes 502 on a second account |
 | Decisions | 001-008. 003, 004, 005, 006 and 008 amended 2026-09-03 by plans 007-010; Q1, Q3, Q4 closed |
 | **API research** | **`documents/research/photos-web-api.md`**, written from a real run today. The shape every later plan builds against |
 | Observation tooling | `scripts/observe-photos-api.sh` and `scripts/summarise-observation.py`, both exercised against a local TLS mock, then run once for real |
@@ -55,12 +55,18 @@ Likes (plan 006) are verified on device: like/unlike round-trips through `likes.
 (File Station Download and Upload both ok), liked items show first, and multi-select batch like,
 download and share work. The likes folder defaults to `/home/OnThisDay`, editable in Settings.
 
-The release keystore exists (2026-09-03) and v1.0.0 was cut with it. A whole-project code review
-the same day produced plans 007-011, executed the same day in a session with no device attached:
-every code change is in and unit-tested, and each plan lists the device checks still to run on the
-Vivo (sign-out and re-login without an expiry bounce, the 4-to-5 migration over v1.0.0, likes
-under rapid toggling, save and video and the update flow, the banner inset). Run those, tick the
-boxes, then cut the next release.
+The release keystore exists (2026-09-03) and v1.0.0 was cut with it; v1.0.4 is the current release.
+A whole-project code review of 2026-09-03 produced plans 007-011, all executed and device-checked on
+the Vivo the same evening.
+
+What is open, in `documents/plans/`: **012**, the likes sync answering HTTP 502 on a second
+household account, which is where the next session starts; and one parked check each in 006 (a
+second device), 007 (a session killed on the NAS side) and 008 (a photo whose date moved, and the
+1,220-item day).
+
+Two things a session needs to know before touching a release: `git fetch` first, because the
+release script pushes its version bump to `main`; and Google Play Protect rejects this app's
+sideloaded APK on Android 15, so an install needs its scanning paused (open question Q5).
 
 Everything else is done and verified on device: sign-in; the day grid with browsing (prev/next,
 date picker) and multi-select; the viewer with photo/video swipe, pinch-to-fit, video playback,
@@ -90,7 +96,7 @@ without the names.
 - Viewer (with in-app video playback via ExoPlayer), save-to-gallery of the original, settings
   and the §2 hardening tests are built (plan 005). Released as v1.0.0 on 2026-09-03.
 - Day browsing (prev/next, date picker) and full Czech localization with the "9. září" date format
-  were added after plan 004 at the owner's request; see plan 004 "Extensions".
+  were added after plan 004 at the owner's request.
 - HTTPS to a real certificate through the router's reverse proxy. No pinning, no cleartext, no
   TLS code. The auto-block-sees-the-proxy exposure is accepted (Q4).
 - The day histogram lives in Room and answers day questions offline (built in plan 003). A day's

@@ -42,8 +42,7 @@ object DsmErrorText {
         return when {
             failure.detail == MalformedDetail.UNREADABLE_LIKES_FILE ->
                 "Soubor likes.json ve složce pro lajky se nepodařilo přečíst. Nebyl přepsán, aby se lajky neztratily; opravte ho, nebo smažte a lajky se uloží znovu."
-            fileStation && status != null ->
-                "NAS odmítl soubor s lajky (HTTP $status). Zkontrolujte, že složka pro lajky existuje a že do ní účet smí zapisovat."
+            fileStation && status != null -> fileStationStatus(status)
             fileStation ->
                 "NAS odpověděl na soubor s lajky neočekávaně (${failure.detail})."
             status != null -> "Adresa odpověděla chybou HTTP $status, ne jako Synology NAS."
@@ -82,6 +81,20 @@ object DsmErrorText {
         411 -> "Přístup ke složce pro lajky byl odepřen."
         1805 -> "Soubor s lajky na NAS nelze přepsat."
         else -> commonReason(code)
+    }
+
+    /**
+     * A status instead of an envelope on the likes file. A 5xx never means the folder or the
+     * permission: it is the reverse proxy or DSM's own httpd failing (decision 004 puts an nginx in
+     * front of DSM), and telling the user to check permissions there sends them the wrong way.
+     */
+    private fun fileStationStatus(status: Int): String = when {
+        status in 500..599 ->
+            "NAS na soubor s lajky neodpověděl (HTTP $status). To je chyba mezi proxy a NAS, ne v oprávněních. Zkuste to znovu; pokud potrvá, je potřeba se podívat na reverzní proxy před DSM."
+        status == 401 || status == 403 ->
+            "NAS odmítl přístup k souboru s lajky (HTTP $status). Účet nemá pravděpodobně povolenou aplikaci File Station."
+        else ->
+            "NAS odmítl soubor s lajky (HTTP $status). Zkontrolujte, že složka pro lajky existuje a že do ní účet smí zapisovat."
     }
 
     private fun commonReason(code: Int): String = when (code) {

@@ -1,65 +1,75 @@
 # Plans
 
-Numbered one per phase of `plan.md` §12. Plan numbers are not the execution order; the
-dependency column is.
+Numbered one per phase of `plan.md` §12 to begin with; 007 and up are follow-ups and their numbers
+are only order of writing. Plan numbers are not the execution order; the dependency column is.
+
+A plan whose every box is ticked is deleted, not kept as a monument: what it decided lives in
+`documents/decisions/`, what it learned about the API in `documents/research/photos-web-api.md`,
+and what it did in the commits it names. `git log -- documents/plans` brings any of them back.
+
+## Live
 
 | Plan | Title | Status | Depends on | Progress |
 | --- | --- | --- | --- | --- |
-| [001](001-api-observation.md) | API observation | Done, U6 dropped | nothing | 8 / 9 |
-| [002](002-foundation-and-auth.md) | Foundation and sign-in | Done | 001 | 14 / 14 |
-| [003](003-day-index.md) | Day histogram and day selection | Done | 001 | 12 / 12 |
-| [004](004-day-screen.md) | Day screen, paging, thumbnails | Done | 002, 003 | 14 / 14 |
-| [005](005-viewer-and-hardening.md) | Viewer, download, hardening | Done; v1.0.0 cut 2026-09-03 | 004 | 13 / 13 |
-| [006](006-likes.md) | Liking photos, stored on the NAS | Done; six observation boxes dropped (File Station route) | 005, decision 008 | 16 / 21 |
-| [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Done; same-account re-login verified on the Vivo; NAS-side expiry check needs a killed session | 005 | 13 / 14 |
-| [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Done; verified on the Vivo 2026-09-03 | 005 | 12 / 12 |
-| [009](009-likes-hardening.md) | Likes hardening | Done; rapid-toggle check on the Vivo 2026-09-03 | 007, 008 | 13 / 13 |
-| [010](010-viewer-save-share-and-update.md) | Viewer, save, share and the update flow | Done (minSdk 29); verified on the Vivo 2026-09-03 | 005 (run after 007) | 14 / 14 |
-| [011](011-documentation-logging-and-dead-code.md) | Documentation, the logging rule and dead code | Done 2026-09-03; release cut pending (needs push) | 007-010 | 14 / 14 |
+| [006](006-likes.md) | Liking photos, stored on the NAS | Built and verified; one acceptance item needs a second device | 005, decision 008 | 16 / 21 |
+| [007](007-session-lifetime-and-thumbnail-cache.md) | Session lifetime and the thumbnail cache | Done bar one check that needs a session killed on the NAS side | 005 | 13 / 14 |
+| [008](008-day-index-and-item-cache.md) | Day index and item cache correctness | Done; two live checks parked (a date edited in Photos, the 1,220-item day) | 005 | 12 / 12 |
+| [012](012-likes-sync-502-on-a-second-account.md) | The likes sync answers HTTP 502 on a second account | Evidence collected 2026-09-04, diagnosis next | 009 | 1 / 9 |
+
+## Done, and where the record went
+
+| Plan | Title | Finished | The record |
+| --- | --- | --- | --- |
+| 001 | API observation | 2026-09-02, U6 dropped (no restricted account in this household) | `documents/research/photos-web-api.md` is the whole output |
+| 002 | Foundation and sign-in | 2026-09-02 | decisions 003, 004, 007 |
+| 003 | Day histogram and day selection | 2026-09-02 | decision 005; `core/DayIndex.kt` and its tests |
+| 004 | Day screen, paging, thumbnails | 2026-09-02 | decisions 002, 006; research U2, U4 |
+| 005 | Viewer, download, hardening | v1.0.0 cut 2026-09-03 | the safety mapping below; `CLAUDE.md` "Release signing" |
+| 009 | Likes hardening | 2026-09-03, device-checked | decision 008's 2026-09-03 amendment |
+| 010 | Viewer, save, share and the update flow | 2026-09-03, device-checked | decision 004's minSdk amendment; open question Q5 (Play Protect) |
+| 011 | Documentation, the logging rule and dead code | 2026-09-03 | `LoggingRuleTest`, and every doc it corrected |
 
 ```
 001 ─┬─> 002 ─┐
      └─> 003 ─┴─> 004 ──> 005 ──> 006
                            │
-                           ├─> 007 ─┬─> 009 ─┐
-                           ├─> 008 ─┘        ├─> 011
-                           └─> 010 ──────────┘
+                           ├─> 007 ─┬─> 009 ──> 012
+                           ├─> 008 ─┘
+                           └─> 010
 ```
 
-## Code review follow-up, 2026-09-03
+## Safety rules, mapped to what enforces them
 
-Plans 007-011 come from a whole-project review run after v1.0.0. Execution order: **007, 008, 009,
-010, 011.** 007 holds the two most severe findings (a stale view model that signs the new session
-out, and the thumbnail cache storing DSM's JSON error envelope). 008 owns the schema bump to
-version 5 and the end of destructive migration; 009 relies on it. 010 edits `DayHost`, which 007
-also edits, so it follows 007. 011 records the final state and adds the logging-rule test, then a
-release is cut.
+From plan 005, kept here because `CLAUDE.md` sends every session to this file and the mapping is
+how a reader checks that plan.md §2 is still true.
 
-All five were executed on 2026-09-03 in a session that started with no device attached: every code
-change is in, 118 JVM tests pass. The device checks ran on the Vivo the same evening; every plan
-lists what was seen. Left open: plan 007's NAS-side session kill and second-account run, plan 008's
-1,220-item day, and the Play Protect finding (plan 010 addendum, open question Q5). The next release
-waits on `main` being pushed. The release script pushes its `chore(release)` bump commit to `main`
-along with the tag; a session that starts work after a release has to `git fetch` first or it builds
-from the previous version.
-
-Owner decisions the plans left open were taken by default and are recorded in each plan: minSdk 29
-(010), the theme's rose follows `colors.xml` (011), the grid double-tap is kept with a comment (010).
-
-001-004 are done. 005 is 10/11: viewer, settings, hardening and the original-file download are
-done; only the release-signed build waits on a keystore.
-
-Plan 003's pure logic is already written and tested (`core/DayIndex.kt`), which is why it starts
-partly done.
-
-Plan 001 ran on 2026-09-02 and answered everything but U6, which the owner dropped: no
-restricted account exists in this household's use, so the question has no one to affect. Plans
-002 and 003 are unblocked; `documents/research/photos-web-api.md` is the shape they build
-against.
+- **Read-only Photos.** `HardeningTest`: every allowlisted method is a read verb, and no
+  allowlisted api or method name implies a write.
+- **Only allowlisted triples.** `SynologyClient.call` calls `Allowlist.require` before building a
+  request; `SynologyClientTest` asserts a triple off the list never reaches the network.
+- **Never log a response body.** `LoggingRuleTest` allows `android.util.Log` only in `ApiLog`,
+  `IndexLog` and `UpdateLog`, and asserts none of their functions takes free text; `HardeningTest`
+  asserts failure messages carry the call name and a code and never body fields.
+- **Never store the password.** `SessionStore` has no password key; `SessionManagerTest` and a
+  source search confirm no path writes one.
+- **HTTPS with a trusted certificate.** No `usesCleartextTraffic`, no network-security-config, no
+  custom trust manager (manifest, `AppGraph`); `parseBaseUrl` refuses `http://` (`BaseUrlTest`),
+  and minSdk 29 means the platform blocks cleartext on every supported level.
+- **An account change wipes everything first.** `SessionManager` wipes the index, the thumbnail
+  cache and the likes-folder setting on a change of `(base URL, account)` before the new account's
+  data shows; `SessionManagerTest` covers all three groups and the same-account case that must not
+  wipe.
+- **A failed login is never retried.** `AuthApi.login` is one call, `SessionManagerTest` asserts one
+  request per attempt, and no retry wraps it. A retry for the likes sync (plan 012) must not change
+  this.
 
 ## Working rules
 
-Same protocol as the `synology-photos-companion` repo, which this repo deliberately mirrors:
-tick a box only when the work is done and verified, keep the `Progress:` header in step, one
-commit per coherent group of ticks, and append `> Blocked: <reason>` under anything that cannot
-be finished rather than ticking it with a caveat.
+Same protocol as the `synology-photos-companion` repo, which this repo deliberately mirrors: tick a
+box only when the work is done and verified, keep the `Progress:` header in step, one commit per
+coherent group of ticks, and append `> Blocked: <reason>` under anything that cannot be finished
+rather than ticking it with a caveat.
+
+Releases are cut by `release-photos-onthisday.sh` (see `CLAUDE.md`), which pushes its
+`chore(release)` bump commit to `main` along with the tag. A session that starts after a release
+has to `git fetch` first, or it builds from the previous version.

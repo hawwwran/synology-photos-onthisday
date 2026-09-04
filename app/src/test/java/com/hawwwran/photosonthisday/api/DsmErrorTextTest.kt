@@ -59,6 +59,13 @@ class DsmErrorTextTest {
         assertTrue(proxyPage, "502" in proxyPage)
         assertTrue(likesHttp, "404" in likesHttp && likesHttp.contains("složka", ignoreCase = true))
         assertTrue(likesHttp, "Synology NAS" !in likesHttp) // the address is fine; the folder is not
+
+        // Seen on a second household account, 2026-09-04: the proxy in front of DSM, not a permission.
+        val gateway = DsmErrorText.forFailure(ApiFailure.Malformed(Allowlist.FS_UPLOAD, MalformedDetail.http(502)))
+        assertTrue(gateway, "502" in gateway && gateway.contains("proxy", ignoreCase = true))
+        assertTrue(gateway, !gateway.contains("oprávnění", ignoreCase = true) || gateway.contains("ne v oprávněních"))
+        val denied = DsmErrorText.forFailure(ApiFailure.Malformed(Allowlist.FS_DOWNLOAD, MalformedDetail.http(403)))
+        assertTrue(denied, denied.contains("File Station"))
         assertTrue(unreadable, unreadable.contains("likes.json"))
         assertTrue(unreadable, unreadable.contains("nebyl přepsán", ignoreCase = true))
     }
